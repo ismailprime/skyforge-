@@ -22,7 +22,7 @@ const client = new Client({
   ]
 });
 
-// ================= JSON DATABASE =================
+// ================= JSON =================
 
 let xp = {};
 let money = {};
@@ -35,31 +35,13 @@ function saveData() {
   fs.writeFileSync("./money.json", JSON.stringify(money, null, 2));
 }
 
-// ================= COOLDOWN =================
+// ================= SYSTEMS =================
 
 let xpCooldown = {};
-
-// ================= VOICE =================
-
 let voiceJoinTime = {};
 let voiceTotal = {};
 
-// ================= KÜFÜR =================
-
-const badWords = [
-  "amk","aq","amq","orospu","oç","oc","piç","sik","sikerim","sikeyim",
-  "yarak","yarrak","amcık","göt","got","ibne","pezevenk","kahpe","puşt",
-  "mal","salak","aptal","gerizekalı",
-  "fuck","fucking","shit","bitch","motherfucker","asshole"
-];
-
-// ================= NORMALIZE =================
-
-function normalizeText(text) {
-  return text.toLowerCase().replace(/[\W_]+/g, "");
-}
-
-// ================= LINK =================
+// ================= LINK FILTER =================
 
 function isLink(text) {
   return (
@@ -119,25 +101,21 @@ client.on("guildMemberAdd", async (member) => {
   }
 });
 
-// ================= VOICE TRACK =================
+// ================= VOICE =================
 
 client.on("voiceStateUpdate", (oldState, newState) => {
-  const userId = newState.id || oldState.id;
+  const id = newState.id || oldState.id;
   const now = Date.now();
 
   if (!oldState.channel && newState.channel) {
-    voiceJoinTime[userId] = now;
+    voiceJoinTime[id] = now;
   }
 
   if (oldState.channel && !newState.channel) {
-    if (voiceJoinTime[userId]) {
-      const duration = now - voiceJoinTime[userId];
-
-      if (!voiceTotal[userId]) voiceTotal[userId] = 0;
-
-      voiceTotal[userId] += duration;
-
-      delete voiceJoinTime[userId];
+    if (voiceJoinTime[id]) {
+      const duration = now - voiceJoinTime[id];
+      voiceTotal[id] = (voiceTotal[id] || 0) + duration;
+      delete voiceJoinTime[id];
     }
   }
 });
@@ -149,22 +127,13 @@ client.on("messageCreate", async (message) => {
 
   const userId = message.author.id;
   const raw = message.content;
-  const clean = normalizeText(raw);
 
   if (!xp[userId]) xp[userId] = 0;
   if (!money[userId]) money[userId] = 0;
 
   const now = Date.now();
 
-  // ================= KÜFÜR =================
-
-  if (badWords.some(w => clean.includes(w))) {
-    await message.delete().catch(() => {});
-    message.member.timeout(5 * 60 * 1000).catch(() => {});
-    return message.channel.send(`${message.author} Küfür yasak! 5 dk mute.`);
-  }
-
-  // ================= LINK =================
+  // ================= LINK BLOCK =================
 
   if (isLink(raw)) {
     await message.delete().catch(() => {});
@@ -189,6 +158,7 @@ client.on("messageCreate", async (message) => {
     const level = getLevel(xp[userId]);
     updateRoles(message.member, level);
 
+    // 👑 SEÑOR
     if (money[userId] >= 100000) {
       const role = message.guild.roles.cache.find(r => r.name === "Señor");
 
@@ -199,13 +169,11 @@ client.on("messageCreate", async (message) => {
     }
   }
 
-  // ================= XP =================
+  // ================= COMMANDS =================
 
   if (message.content === "!xp") {
     return message.reply(`⭐ XP: ${xp[userId]} | 📊 Level: ${getLevel(xp[userId])}`);
   }
-
-  // ================= RANK =================
 
   if (message.content.startsWith("!rank")) {
     const user = message.mentions.members.first() || message.member;
@@ -216,21 +184,18 @@ client.on("messageCreate", async (message) => {
     );
   }
 
-  // ================= TOP RANK =================
-
   if (message.content === "!toprank") {
-
     const sorted = Object.entries(xp)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
 
-    let text = "🏆 **TOP 10 XP SIRALAMASI**\n\n";
+    let text = "🏆 TOP 10 XP\n\n";
 
     for (let i = 0; i < sorted.length; i++) {
-      const userId = sorted[i][0];
+      const uid = sorted[i][0];
       const userXp = sorted[i][1];
 
-      const member = message.guild.members.cache.get(userId);
+      const member = message.guild.members.cache.get(uid);
 
       text += `${i + 1}. ${member ? member.user.tag : "Bilinmiyor"} - ⭐ ${userXp}\n`;
     }
@@ -238,16 +203,12 @@ client.on("messageCreate", async (message) => {
     message.channel.send(text);
   }
 
-  // ================= VOICE =================
-
   if (message.content === "!voice") {
     const total = voiceTotal[userId] || 0;
-    const minutes = Math.floor(total / 60000);
-
-    return message.reply(`🎧 Toplam ses süren: ${minutes} dakika`);
+    return message.reply(`🎧 Süre: ${Math.floor(total / 60000)} dakika`);
   }
 
-  // ================= ADMIN XP =================
+  // ================= ADMIN =================
 
   if (message.content.startsWith("!xpver")) {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
@@ -256,15 +217,13 @@ client.on("messageCreate", async (message) => {
     const user = message.mentions.members.first();
     const amount = parseInt(args[2]);
 
-    if (!user || isNaN(amount)) return message.reply("!xpver @kişi 500");
+    if (!user || isNaN(amount)) return;
 
     xp[user.id] = (xp[user.id] || 0) + amount;
     saveData();
 
-    message.channel.send(`⭐ ${user} +${amount} XP`);
+    message.channel.send(`⭐ XP verildi`);
   }
-
-  // ================= ADMIN MONEY =================
 
   if (message.content.startsWith("!paraver")) {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
@@ -273,22 +232,20 @@ client.on("messageCreate", async (message) => {
     const user = message.mentions.members.first();
     const amount = parseInt(args[2]);
 
-    if (!user || isNaN(amount)) return message.reply("!paraver @kişi 5000");
+    if (!user || isNaN(amount)) return;
 
     money[user.id] = (money[user.id] || 0) + amount;
     saveData();
 
-    message.channel.send(`💰 ${user} +${amount} coin`);
+    message.channel.send(`💰 Para verildi`);
   }
-
-  // ================= ÇEKİLİŞ =================
 
   if (message.content.startsWith("!cekilis")) {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     const prize = message.content.split(" ").slice(1).join(" ");
 
-    message.channel.send(`🎉 ÇEKİLİŞ: **${prize}**`);
+    message.channel.send(`🎉 Çekiliş: **${prize}**`);
 
     setTimeout(async () => {
       const msgs = await message.channel.messages.fetch({ limit: 50 });

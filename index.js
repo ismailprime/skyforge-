@@ -12,7 +12,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates
   ],
   partials: [
     Partials.Message,
@@ -34,15 +35,22 @@ function saveData() {
   fs.writeFileSync("./money.json", JSON.stringify(money, null, 2));
 }
 
+// ================= COOLDOWN =================
+
 let xpCooldown = {};
 
-// ================= DEV KÜFÜR LİSTESİ =================
+// ================= VOICE =================
+
+let voiceJoinTime = {};
+let voiceTotal = {};
+
+// ================= KÜFÜR =================
 
 const badWords = [
-  "amk","aq","amq","orospu","oç","oc","piç","pic","siktir","sik","sikerim","sikeyim",
-  "yarak","yarrak","amcık","amcuk","göt","got","ibne","pezevenk","kahpe","puşt",
-  "ananı","bacını","gavat","lavuk","mal","salak","aptal","gerizekalı",
-  "fuck","fucking","motherfucker","shit","bitch","asshole","dick","cock"
+  "amk","aq","amq","orospu","oç","oc","piç","sik","sikerim","sikeyim",
+  "yarak","yarrak","amcık","göt","got","ibne","pezevenk","kahpe","puşt",
+  "mal","salak","aptal","gerizekalı",
+  "fuck","fucking","shit","bitch","motherfucker","asshole"
 ];
 
 // ================= NORMALIZE =================
@@ -83,7 +91,7 @@ function getLevel(userXp) {
 
 async function updateRoles(member, level) {
   const roles = {
-    1: "⛏️ Çaylak Üye",
+    1: "Çaylak Üye",
     10: "Aktif Üye",
     20: "Sadık Üye",
     30: "Daimi Üye",
@@ -111,6 +119,29 @@ client.on("guildMemberAdd", async (member) => {
   }
 });
 
+// ================= VOICE TRACK =================
+
+client.on("voiceStateUpdate", (oldState, newState) => {
+  const userId = newState.id || oldState.id;
+  const now = Date.now();
+
+  if (!oldState.channel && newState.channel) {
+    voiceJoinTime[userId] = now;
+  }
+
+  if (oldState.channel && !newState.channel) {
+    if (voiceJoinTime[userId]) {
+      const duration = now - voiceJoinTime[userId];
+
+      if (!voiceTotal[userId]) voiceTotal[userId] = 0;
+
+      voiceTotal[userId] += duration;
+
+      delete voiceJoinTime[userId];
+    }
+  }
+});
+
 // ================= MESSAGE =================
 
 client.on("messageCreate", async (message) => {
@@ -119,6 +150,11 @@ client.on("messageCreate", async (message) => {
   const userId = message.author.id;
   const raw = message.content;
   const clean = normalizeText(raw);
+
+  if (!xp[userId]) xp[userId] = 0;
+  if (!money[userId]) money[userId] = 0;
+
+  const now = Date.now();
 
   // ================= KÜFÜR =================
 
@@ -138,11 +174,6 @@ client.on("messageCreate", async (message) => {
 
   // ================= XP + MONEY =================
 
-  if (!xp[userId]) xp[userId] = 0;
-  if (!money[userId]) money[userId] = 0;
-
-  const now = Date.now();
-
   if (!xpCooldown[userId] || now - xpCooldown[userId] > 120000) {
 
     const gainedXP = Math.floor(Math.random() * 21) + 10;
@@ -158,8 +189,6 @@ client.on("messageCreate", async (message) => {
     const level = getLevel(xp[userId]);
     updateRoles(message.member, level);
 
-    // ================= SEÑOR =================
-
     if (money[userId] >= 100000) {
       const role = message.guild.roles.cache.find(r => r.name === "Señor");
 
@@ -170,34 +199,52 @@ client.on("messageCreate", async (message) => {
     }
   }
 
-  // ================= BALANCE =================
+  // ================= XP =================
 
-  if (message.content === "!para") {
-    return message.reply(`💰 Paran: ${money[userId] || 0} coin`);
+  if (message.content === "!xp") {
+    return message.reply(`⭐ XP: ${xp[userId]} | 📊 Level: ${getLevel(xp[userId])}`);
   }
 
-  // ================= ADMIN MONEY =================
+  // ================= RANK =================
 
-  if (message.content.startsWith("!paraver")) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+  if (message.content.startsWith("!rank")) {
+    const user = message.mentions.members.first() || message.member;
+    const id = user.id;
 
-    const args = message.content.split(" ");
-    const user = message.mentions.members.first();
-    const amount = parseInt(args[2]);
+    return message.channel.send(
+      `🏆 ${user.user.tag}\n⭐ XP: ${xp[id] || 0}\n📊 Level: ${getLevel(xp[id] || 0)}`
+    );
+  }
 
-    if (!user || isNaN(amount)) return message.reply("!paraver @kişi 5000");
+  // ================= TOP RANK =================
 
-    if (!money[user.id]) money[user.id] = 0;
+  if (message.content === "!toprank") {
 
-    money[user.id] += amount;
-    saveData();
+    const sorted = Object.entries(xp)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
 
-    message.channel.send(`💰 ${user} +${amount} coin aldı!`);
+    let text = "🏆 **TOP 10 XP SIRALAMASI**\n\n";
 
-    if (money[user.id] >= 100000) {
-      const role = message.guild.roles.cache.find(r => r.name === "Señor");
-      if (role && !user.roles.cache.has(role.id)) user.roles.add(role).catch(() => {});
+    for (let i = 0; i < sorted.length; i++) {
+      const userId = sorted[i][0];
+      const userXp = sorted[i][1];
+
+      const member = message.guild.members.cache.get(userId);
+
+      text += `${i + 1}. ${member ? member.user.tag : "Bilinmiyor"} - ⭐ ${userXp}\n`;
     }
+
+    message.channel.send(text);
+  }
+
+  // ================= VOICE =================
+
+  if (message.content === "!voice") {
+    const total = voiceTotal[userId] || 0;
+    const minutes = Math.floor(total / 60000);
+
+    return message.reply(`🎧 Toplam ses süren: ${minutes} dakika`);
   }
 
   // ================= ADMIN XP =================
@@ -211,15 +258,27 @@ client.on("messageCreate", async (message) => {
 
     if (!user || isNaN(amount)) return message.reply("!xpver @kişi 500");
 
-    if (!xp[user.id]) xp[user.id] = 0;
-
-    xp[user.id] += amount;
+    xp[user.id] = (xp[user.id] || 0) + amount;
     saveData();
 
-    const level = getLevel(xp[user.id]);
-    updateRoles(user, level);
+    message.channel.send(`⭐ ${user} +${amount} XP`);
+  }
 
-    message.channel.send(`⭐ ${user} +${amount} XP aldı!`);
+  // ================= ADMIN MONEY =================
+
+  if (message.content.startsWith("!paraver")) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+
+    const args = message.content.split(" ");
+    const user = message.mentions.members.first();
+    const amount = parseInt(args[2]);
+
+    if (!user || isNaN(amount)) return message.reply("!paraver @kişi 5000");
+
+    money[user.id] = (money[user.id] || 0) + amount;
+    saveData();
+
+    message.channel.send(`💰 ${user} +${amount} coin`);
   }
 
   // ================= ÇEKİLİŞ =================

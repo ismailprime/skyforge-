@@ -45,7 +45,7 @@ const SEÑOR_ROLE = "1515780264779841689";
 
 const LOG = "📜│herşey-log";
 
-// ================= KÜFÜR FİLTRESİ =================
+// ================= BAD WORD =================
 
 const badWords = [
   "amk","aq","orospu","oç","piç","sik","siktir",
@@ -66,20 +66,6 @@ function isLink(t) {
   return t.includes("http") || t.includes("discord.gg") || t.includes(".com") || t.includes(".gg");
 }
 
-// ================= LEVEL =================
-
-function getLevel(x) {
-  let l = 0;
-  let req = 1000;
-
-  while (x >= req) {
-    x -= req;
-    req += 500;
-    l++;
-  }
-  return l;
-}
-
 // ================= LOG =================
 
 function log(g, t) {
@@ -87,7 +73,7 @@ function log(g, t) {
   if (c) c.send(t);
 }
 
-// ================= MESSAGE =================
+// ================= MESSAGE SYSTEM =================
 
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
@@ -105,7 +91,6 @@ client.on("messageCreate", async message => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       await message.delete().catch(() => {});
       message.member.timeout(60 * 1000).catch(() => {});
-      log(message.guild, `🚫 KÜFÜR ${message.author.tag}`);
       return message.channel.send("🚫 1 dk mute");
     }
   }
@@ -114,18 +99,14 @@ client.on("messageCreate", async message => {
   if (isLink(txt)) {
     await message.delete().catch(() => {});
     message.member.timeout(60 * 60 * 1000).catch(() => {});
-    log(message.guild, `🔗 LINK ${message.author.tag}`);
     return;
   }
 
-  // ================= XP + PARA (2 DK SYSTEM) =================
+  // ================= XP + PARA (2 DK) =================
   if (now - cooldown[id] >= 120000) {
 
-    const xpGain = Math.floor(Math.random() * 21) + 10;
-    const moneyGain = Math.floor(Math.random() * 901) + 100;
-
-    xp[id] += xpGain;
-    money[id] += moneyGain;
+    xp[id] += Math.floor(Math.random() * 20) + 10;
+    money[id] += Math.floor(Math.random() * 900) + 100;
 
     cooldown[id] = now;
     save();
@@ -136,26 +117,23 @@ client.on("messageCreate", async message => {
   if (txt === "!xp") return message.reply(`⭐ XP: ${xp[id]}`);
   if (txt === "!param") return message.reply(`💰 Para: ${money[id]}`);
 
-  if (txt.startsWith("!rank")) {
-    const u = message.mentions.members.first() || message.member;
-    return message.channel.send(`⭐ ${u.user.tag} XP: ${xp[u.id] || 0}`);
-  }
-
   if (txt === "!toprank") {
     const sorted = Object.entries(xp).sort((a,b)=>b[1]-a[1]).slice(0,10);
     return message.channel.send(sorted.map((x,i)=>`${i+1}. <@${x[0]}> ${x[1]}`).join("\n"));
   }
 
-  // ================= ADMIN XP =================
+  // ================= ADMIN XP VER (FIX) =================
   if (txt.startsWith("!xpver")) {
 
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
 
+    const args = txt.split(" ");
     const user = message.mentions.members.first();
-    const amount = parseInt(txt.split(" ")[2]);
+    const amount = Number(args[2]);
 
-    if (!user || isNaN(amount)) return;
+    if (!user || isNaN(amount))
+      return message.reply("Kullanım: !xpver @kişi 100");
 
     xp[user.id] = (xp[user.id] || 0) + amount;
     save();
@@ -163,16 +141,18 @@ client.on("messageCreate", async message => {
     return message.channel.send(`⭐ XP verildi`);
   }
 
-  // ================= ADMIN PARA =================
+  // ================= ADMIN PARA VER (FIX) =================
   if (txt.startsWith("!paraver")) {
 
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
 
+    const args = txt.split(" ");
     const user = message.mentions.members.first();
-    const amount = parseInt(txt.split(" ")[2]);
+    const amount = Number(args[2]);
 
-    if (!user || isNaN(amount)) return;
+    if (!user || isNaN(amount))
+      return message.reply("Kullanım: !paraver @kişi 100");
 
     money[user.id] = (money[user.id] || 0) + amount;
     save();
@@ -186,7 +166,7 @@ client.on("messageCreate", async message => {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("buy_xp")
-        .setLabel("⭐ XP (50💰 = 1 XP)")
+        .setLabel("⭐ XP (50💰)")
         .setStyle(ButtonStyle.Primary),
 
       new ButtonBuilder()

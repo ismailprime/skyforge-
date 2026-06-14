@@ -51,7 +51,7 @@ const ROLE = {
 
 const LOG = "📜│herşey-log";
 
-// ================= KÜFÜR =================
+// ================= KÜFÜR FİLTRESİ =================
 
 const badWords = [
   "amk","aq","amq","orospu","oç","piç","s1k","sik","siktir",
@@ -106,8 +106,8 @@ client.on("guildMemberAdd", m => {
   const r = m.guild.roles.cache.get(ROLE[1]);
   if (r) m.roles.add(r).catch(() => {});
 
-  const ch = m.guild.channels.cache.find(x => x.name === "💬│genel-sohbet");
-  if (ch) ch.send(`👋 Hoş geldin ${m}`);
+  const c = m.guild.channels.cache.find(x => x.name === "💬│genel-sohbet");
+  if (c) c.send(`👋 Hoş geldin ${m}`);
 });
 
 // ================= VOICE =================
@@ -140,8 +140,10 @@ client.on("messageCreate", async message => {
   if (badWords.some(w => clean(txt).includes(w))) {
 
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+
       await message.delete().catch(() => {});
       message.member.timeout(60 * 1000).catch(() => {});
+
       log(message.guild, `🚫 KÜFÜR ${message.author.tag}`);
       return message.channel.send(`${message.author} 1 dk mute`);
     }
@@ -183,7 +185,7 @@ client.on("messageCreate", async message => {
     save();
   }
 
-  // ================= USER KOMUTLAR =================
+  // ================= KOMUTLAR =================
 
   if (txt === "!xp") return message.reply(`⭐ XP: ${xp[id]}`);
   if (txt === "!xpm") return message.reply(`⭐ XP: ${xp[id] || 0}`);
@@ -202,60 +204,43 @@ client.on("messageCreate", async message => {
   if (txt === "!voice")
     return message.reply(`${Math.floor((voiceTotal[id]||0)/60000)} dk`);
 
-  // ================= ADMIN =================
+  // ================= ADMIN (SADECE VERME) =================
 
   if (txt.startsWith("!xpver")) {
+
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     const u = message.mentions.members.first();
     const a = Number(txt.split(" ")[2]);
+
     if (!u || isNaN(a)) return;
 
     xp[u.id] = (xp[u.id] || 0) + a;
     save();
+
+    return message.channel.send(`⭐ XP verildi`);
   }
 
   if (txt.startsWith("!paraver")) {
+
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     const u = message.mentions.members.first();
     const a = Number(txt.split(" ")[2]);
+
     if (!u || isNaN(a)) return;
 
     money[u.id] = (money[u.id] || 0) + a;
     save();
-  }
 
-  if (txt.startsWith("!paraal")) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    const u = message.mentions.members.first();
-    const a = Number(txt.split(" ")[2]);
-
-    if (!u || isNaN(a)) return;
-
-    money[u.id] = Math.max(0, (money[u.id] || 0) - a);
-    save();
-  }
-
-  if (txt.startsWith("!xpal")) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    const u = message.mentions.members.first();
-    const a = Number(txt.split(" ")[2]);
-
-    if (!u || isNaN(a)) return;
-
-    xp[u.id] = Math.max(0, (xp[u.id] || 0) - a);
-    save();
+    return message.channel.send(`💰 Para verildi`);
   }
 
   // ================= ÇEKİLİŞ =================
 
   if (txt.startsWith("!cekilis")) {
 
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     const prize = txt.split(" ").slice(1).join(" ");
 
@@ -283,7 +268,7 @@ client.on("messageCreate", async message => {
 
 });
 
-// ================= LOG EVENTS =================
+// ================= LOG =================
 
 client.on("messageDelete", m => log(m.guild, `🗑 SİLİNDİ ${m.author?.tag}`));
 client.on("messageUpdate", m => log(m.guild, `✏️ EDİT ${m.author?.tag}`));

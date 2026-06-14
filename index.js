@@ -38,7 +38,8 @@ let voiceJoinTime = {};
 let voiceTotal = {};
 let curseFilter = true;
 
-const LOG_CHANNEL_NAME = "📜│herşey-log";
+const LOG_CHANNEL = "📜│herşey-log";
+const GIVEAWAYS = new Map();
 
 // ================= KÜFÜR =================
 
@@ -50,7 +51,7 @@ const badWords = [
   "fuck","fucking","shit","bitch","asshole","motherfucker"
 ];
 
-function normalizeText(text) {
+function normalize(text) {
   return text.toLowerCase().replace(/[\W_]+/g, "");
 }
 
@@ -69,16 +70,15 @@ function isLink(text) {
 
 // ================= LEVEL =================
 
-function getLevel(userXp) {
+function getLevel(x) {
   let level = 0;
   let req = 1000;
 
-  while (userXp >= req) {
-    userXp -= req;
+  while (x >= req) {
+    x -= req;
     req += 500;
     level++;
   }
-
   return level;
 }
 
@@ -86,7 +86,7 @@ function getLevel(userXp) {
 
 async function updateRoles(member, level) {
   const roles = {
-    1: "Çaylak Üye",
+    1: "⛏️ Çaylak Üye",
     10: "Aktif Üye",
     20: "Sadık Üye",
     30: "Daimi Üye",
@@ -94,45 +94,54 @@ async function updateRoles(member, level) {
     50: "Elit"
   };
 
-  const roleName = roles[level];
-  if (!roleName) return;
-
-  const role = member.guild.roles.cache.find(r => r.name === roleName);
+  const role = member.guild.roles.cache.find(r => r.name === roles[level]);
   if (role) member.roles.add(role).catch(() => {});
+}
+
+// ================= LOG =================
+
+function log(guild, text) {
+  const ch = guild.channels.cache.find(c => c.name === LOG_CHANNEL);
+  if (ch) ch.send(text);
 }
 
 // ================= WELCOME =================
 
-client.on("guildMemberAdd", async (member) => {
+client.on("guildMemberAdd", member => {
   const role = member.guild.roles.cache.find(r => r.name === "⛏️ | Oyuncu");
   if (role) member.roles.add(role).catch(() => {});
 
-  const channel = member.guild.channels.cache.find(c => c.name === "💬│genel-sohbet");
+  const ch = member.guild.channels.cache.find(c => c.name === "💬│genel-sohbet");
+  if (ch) ch.send(`👋 Hoş geldin ${member}`);
+});
 
-  if (channel) {
-    channel.send(`👋 Hoş geldin ${member}!\n⛏️ Rolün verildi.`);
+// ================= VOICE =================
+
+client.on("voiceStateUpdate", (oldState, newState) => {
+  const id = newState.id || oldState.id;
+  const now = Date.now();
+
+  if (!oldState.channel && newState.channel) {
+    voiceJoinTime[id] = now;
+  }
+
+  if (oldState.channel && !newState.channel) {
+    const t = now - voiceJoinTime[id];
+    voiceTotal[id] = (voiceTotal[id] || 0) + t;
   }
 });
 
-// ================= LOG FUNCTION =================
-
-function log(guild, text) {
-  const channel = guild.channels.cache.find(c => c.name === LOG_CHANNEL_NAME);
-  if (!channel) return;
-  channel.send(text);
-}
-
 // ================= MESSAGE =================
 
-client.on("messageCreate", async (message) => {
+client.on("messageCreate", async message => {
   if (message.author.bot) return;
 
-  const userId = message.author.id;
+  const id = message.author.id;
   const raw = message.content;
-  const clean = normalizeText(raw);
+  const clean = normalize(raw);
 
-  if (!xp[userId]) xp[userId] = 0;
-  if (!money[userId]) money[userId] = 0;
+  if (!xp[id]) xp[id] = 0;
+  if (!money[id]) money[id] = 0;
 
   const now = Date.now();
 
@@ -140,16 +149,17 @@ client.on("messageCreate", async (message) => {
 
   if (curseFilter && badWords.some(w => clean.includes(w))) {
 
-    if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 
-    await message.delete().catch(() => {});
-    message.member.timeout(60 * 1000, "Küfür").catch(() => {});
+      await message.delete().catch(() => {});
+      message.member.timeout(60 * 1000, "Küfür").catch(() => {});
 
-    log(message.guild,
-      `🚫 **KÜFÜR**\n👤 ${message.author.tag}\n💬 ${message.content}`
-    );
+      log(message.guild,
+        `🚫 KÜFÜR\n${message.author.tag}\n${message.content}`
+      );
 
-    return message.channel.send(`${message.author} 1 dakika mute!`);
+      return message.channel.send(`${message.author} 1 dk mute!`);
+    }
   }
 
   // ================= LINK =================
@@ -157,89 +167,121 @@ client.on("messageCreate", async (message) => {
   if (isLink(raw)) {
     await message.delete().catch(() => {});
     message.member.timeout(60 * 60 * 1000, "Link").catch(() => {});
-
-    log(message.guild,
-      `🔗 **LINK**\n👤 ${message.author.tag}\n💬 ${message.content}`
-    );
-
-    return message.channel.send("Link yasak!");
+    log(message.guild, `🔗 LINK\n${message.author.tag}`);
+    return;
   }
 
-  // ================= XP + MONEY =================
+  // ================= XP / MONEY =================
 
-  if (!xpCooldown[userId] || now - xpCooldown[userId] > 120000) {
-    xp[userId] += Math.floor(Math.random() * 21) + 10;
-    money[userId] += Math.floor(Math.random() * 901) + 100;
+  if (!xpCooldown[id] || now - xpCooldown[id] > 120000) {
+    xp[id] += Math.floor(Math.random() * 21) + 10;
+    money[id] += Math.floor(Math.random() * 901) + 100;
 
-    xpCooldown[userId] = now;
-
+    xpCooldown[id] = now;
     saveData();
+
+    const lvl = getLevel(xp[id]);
+    updateRoles(message.member, lvl);
+
+    if (money[id] >= 100000) {
+      const role = message.guild.roles.cache.find(r => r.name === "Señor");
+      if (role) message.member.roles.add(role).catch(() => {});
+    }
   }
 
   // ================= COMMANDS =================
 
-  if (message.content === "!xp") {
-    return message.reply(`⭐ XP: ${xp[userId]}`);
+  if (message.content === "!xp")
+    return message.reply(`⭐ ${xp[id]}`);
+
+  if (message.content.startsWith("!rank")) {
+    const u = message.mentions.members.first() || message.member;
+    return message.channel.send(`⭐ ${u.user.tag} XP: ${xp[u.id] || 0}`);
   }
 
   if (message.content === "!toprank") {
     const sorted = Object.entries(xp).sort((a,b)=>b[1]-a[1]).slice(0,10);
-
-    let text = "🏆 TOP 10\n\n";
-    sorted.forEach((u,i)=>{
-      text += `${i+1}. <@${u[0]}> - ${u[1]} XP\n`;
-    });
-
-    message.channel.send(text);
-  }
-});
-
-// ================= MESSAGE DELETE LOG =================
-
-client.on("messageDelete", msg => {
-  if (!msg.guild) return;
-
-  log(msg.guild,
-    `🗑 **MESAJ SİLİNDİ**\n👤 ${msg.author?.tag}\n💬 ${msg.content || "boş"}`
-  );
-});
-
-// ================= MESSAGE EDIT LOG =================
-
-client.on("messageUpdate", (oldMsg, newMsg) => {
-  if (!oldMsg.guild) return;
-  if (oldMsg.content === newMsg.content) return;
-
-  log(oldMsg.guild,
-    `✏️ **MESAJ DÜZENLENDİ**\n👤 ${oldMsg.author?.tag}\n❌ ${oldMsg.content}\n✅ ${newMsg.content}`
-  );
-});
-
-// ================= MOD LOGS =================
-
-// BAN
-client.on("guildBanAdd", ban => {
-  log(ban.guild,
-    `⛔ **BAN**\n👤 ${ban.user.tag}`
-  );
-});
-
-// KICK
-client.on("guildMemberRemove", member => {
-  log(member.guild,
-    `👢 **KICK / AYRILDI**\n👤 ${member.user.tag}`
-  );
-});
-
-// TIMEOUT (MUTE)
-client.on("guildMemberUpdate", (oldMember, newMember) => {
-  const oldTimeout = oldMember.communicationDisabledUntilTimestamp;
-  const newTimeout = newMember.communicationDisabledUntilTimestamp;
-
-  if (!oldTimeout && newTimeout) {
-    log(newMember.guild,
-      `🔇 **MUTE (TIMEOUT)**\n👤 ${newMember.user.tag}`
+    message.channel.send(
+      sorted.map((x,i)=>`${i+1}. <@${x[0]}> ${x[1]}`).join("\n")
     );
+  }
+
+  if (message.content === "!voice")
+    return message.reply(`${Math.floor((voiceTotal[id]||0)/60000)} dk`);
+
+  // ================= ADMIN =================
+
+  if (message.content.startsWith("!xpver")) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    const u = message.mentions.members.first();
+    const a = parseInt(message.content.split(" ")[2]);
+    xp[u.id] += a;
+    saveData();
+  }
+
+  if (message.content.startsWith("!paraver")) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    const u = message.mentions.members.first();
+    const a = parseInt(message.content.split(" ")[2]);
+    money[u.id] += a;
+    saveData();
+  }
+
+  // ================= ÇEKİLİŞ =================
+
+  if (message.content.startsWith("!cekilis")) {
+
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
+
+    const prize = message.content.split(" ").slice(1).join(" ");
+
+    const msg = await message.channel.send(
+      `🎉 ÇEKİLİŞ\n🏆 ${prize}\n👍 24 saat`
+    );
+
+    await msg.react("👍");
+
+    GIVEAWAYS.set(msg.id, { prize });
+
+    setTimeout(async () => {
+
+      const reaction = msg.reactions.cache.get("👍");
+      const users = await reaction.users.fetch();
+
+      const list = users.filter(u => !u.bot);
+
+      const arr = [...list.values()];
+      const winner = arr[Math.floor(Math.random() * arr.length)];
+
+      message.channel.send(`🏆 Kazanan: ${winner}`);
+
+    }, 86400000);
+  }
+
+});
+
+// ================= LOG EVENTS =================
+
+client.on("messageDelete", m =>
+  log(m.guild, `🗑 SİLİNDİ ${m.author?.tag}`)
+);
+
+client.on("messageUpdate", (o,n) =>
+  log(o.guild, `✏️ EDİT ${o.author?.tag}`)
+);
+
+client.on("guildBanAdd", b =>
+  log(b.guild, `⛔ BAN ${b.user.tag}`)
+);
+
+client.on("guildMemberRemove", m =>
+  log(m.guild, `👢 KICK/ÇIKIŞ ${m.user.tag}`)
+);
+
+client.on("guildMemberUpdate", (o,n) => {
+  if (!o.communicationDisabledUntil && n.communicationDisabledUntil) {
+    log(n.guild, `🔇 MUTE ${n.user.tag}`);
   }
 });
 

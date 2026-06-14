@@ -51,27 +51,22 @@ const ROLE = {
 
 const LOG = "📜│herşey-log";
 
-// ================= ULTRA KÜFÜR FİLTRESİ =================
+// ================= KÜFÜR =================
 
 const badWords = [
-  "amk","aq","amq","orospu","oç","oc","piç","p1ç",
-  "sik","s1k","siktir","yarak","yarrak","amcık","amcik",
-  "göt","got","ibne","pezevenk","kahpe","puşt","mal","salak",
-  "aptal","gerizekalı","fuck","shit","bitch","asshole"
+  "amk","aq","amq","orospu","oç","piç","s1k","sik","siktir",
+  "yarak","amcık","göt","ibne","fuck","shit","bitch","asshole"
 ];
 
-function clean(text) {
-  return text
-    .toLowerCase()
+function clean(t) {
+  return t.toLowerCase()
     .replace(/[\s\W_]+/g, "")
-    .replace(/0/g, "o")
-    .replace(/1/g, "i")
-    .replace(/3/g, "e")
-    .replace(/4/g, "a")
-    .replace(/5/g, "s");
+    .replace(/0/g,"o")
+    .replace(/1/g,"i")
+    .replace(/3/g,"e")
+    .replace(/4/g,"a")
+    .replace(/5/g,"s");
 }
-
-// ================= LINK =================
 
 function isLink(t) {
   return (
@@ -94,10 +89,11 @@ function getLevel(x) {
     req += 500;
     l++;
   }
+
   return l;
 }
 
-// ================= LOG FUNCTION =================
+// ================= LOG FUNC =================
 
 function log(g, t) {
   const c = g.channels.cache.find(x => x.name === LOG);
@@ -110,8 +106,8 @@ client.on("guildMemberAdd", m => {
   const r = m.guild.roles.cache.get(ROLE[1]);
   if (r) m.roles.add(r).catch(() => {});
 
-  const c = m.guild.channels.cache.find(x => x.name === "💬│genel-sohbet");
-  if (c) c.send(`👋 Hoş geldin ${m}`);
+  const ch = m.guild.channels.cache.find(x => x.name === "💬│genel-sohbet");
+  if (ch) ch.send(`👋 Hoş geldin ${m}`);
 });
 
 // ================= VOICE =================
@@ -144,10 +140,8 @@ client.on("messageCreate", async message => {
   if (badWords.some(w => clean(txt).includes(w))) {
 
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-
       await message.delete().catch(() => {});
       message.member.timeout(60 * 1000).catch(() => {});
-
       log(message.guild, `🚫 KÜFÜR ${message.author.tag}`);
       return message.channel.send(`${message.author} 1 dk mute`);
     }
@@ -189,10 +183,11 @@ client.on("messageCreate", async message => {
     save();
   }
 
-  // ================= KOMUTLAR =================
+  // ================= USER KOMUTLAR =================
 
-  if (txt === "!xp")
-    return message.reply(`⭐ XP: ${xp[id]}`);
+  if (txt === "!xp") return message.reply(`⭐ XP: ${xp[id]}`);
+  if (txt === "!xpm") return message.reply(`⭐ XP: ${xp[id] || 0}`);
+  if (txt === "!param") return message.reply(`💰 Para: ${money[id] || 0}`);
 
   if (txt.startsWith("!rank")) {
     const u = message.mentions.members.first() || message.member;
@@ -214,8 +209,7 @@ client.on("messageCreate", async message => {
 
     const u = message.mentions.members.first();
     const a = Number(txt.split(" ")[2]);
-
-    if (!u || isNaN(a)) return message.reply("!xpver @kişi miktar");
+    if (!u || isNaN(a)) return;
 
     xp[u.id] = (xp[u.id] || 0) + a;
     save();
@@ -226,10 +220,33 @@ client.on("messageCreate", async message => {
 
     const u = message.mentions.members.first();
     const a = Number(txt.split(" ")[2]);
-
-    if (!u || isNaN(a)) return message.reply("!paraver @kişi miktar");
+    if (!u || isNaN(a)) return;
 
     money[u.id] = (money[u.id] || 0) + a;
+    save();
+  }
+
+  if (txt.startsWith("!paraal")) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+
+    const u = message.mentions.members.first();
+    const a = Number(txt.split(" ")[2]);
+
+    if (!u || isNaN(a)) return;
+
+    money[u.id] = Math.max(0, (money[u.id] || 0) - a);
+    save();
+  }
+
+  if (txt.startsWith("!xpal")) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+
+    const u = message.mentions.members.first();
+    const a = Number(txt.split(" ")[2]);
+
+    if (!u || isNaN(a)) return;
+
+    xp[u.id] = Math.max(0, (xp[u.id] || 0) - a);
     save();
   }
 
@@ -271,6 +288,6 @@ client.on("messageCreate", async message => {
 client.on("messageDelete", m => log(m.guild, `🗑 SİLİNDİ ${m.author?.tag}`));
 client.on("messageUpdate", m => log(m.guild, `✏️ EDİT ${m.author?.tag}`));
 client.on("guildBanAdd", b => log(b.guild, `⛔ BAN ${b.user.tag}`));
-client.on("guildMemberRemove", m => log(m.guild, `👢 KICK ${m.user.tag}`));
+client.on("guildMemberRemove", m => log(m.guild, `👢 KICK ${m.user?.tag}`));
 
 client.login(process.env.TOKEN);

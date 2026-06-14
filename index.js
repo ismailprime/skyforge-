@@ -35,13 +35,30 @@ function saveData() {
   fs.writeFileSync("./money.json", JSON.stringify(money, null, 2));
 }
 
-// ================= SYSTEMS =================
+// ================= SYSTEM =================
 
 let xpCooldown = {};
 let voiceJoinTime = {};
 let voiceTotal = {};
 
-// ================= LINK FILTER =================
+// 🚫 KÜFÜR FİLTRE AÇ/KAPAT
+let curseFilter = true;
+
+// ================= KÜFÜR LİSTESİ =================
+
+const badWords = [
+  "amk","aq","amq","orospu","oç","oc","piç","pic",
+  "sik","sikerim","sikeyim","siktir","yarak","yarrak",
+  "amcık","göt","got","ibne","pezevenk","kahpe","puşt",
+  "mal","salak","aptal","gerizekalı",
+  "fuck","fucking","shit","bitch","asshole","motherfucker"
+];
+
+function normalizeText(text) {
+  return text.toLowerCase().replace(/[\W_]+/g, "");
+}
+
+// ================= LINK =================
 
 function isLink(text) {
   return (
@@ -69,11 +86,11 @@ function getLevel(userXp) {
   return level;
 }
 
-// ================= ROLE SYSTEM =================
+// ================= ROLE =================
 
 async function updateRoles(member, level) {
   const roles = {
-    1: "Çaylak Üye",
+    1: "⛏️ Çaylak Üye",
     10: "Aktif Üye",
     20: "Sadık Üye",
     30: "Daimi Üye",
@@ -127,17 +144,35 @@ client.on("messageCreate", async (message) => {
 
   const userId = message.author.id;
   const raw = message.content;
+  const clean = normalizeText(raw);
 
   if (!xp[userId]) xp[userId] = 0;
   if (!money[userId]) money[userId] = 0;
 
   const now = Date.now();
 
-  // ================= LINK BLOCK =================
+  // ================= KÜFÜR SİSTEMİ (1 DK MUTE) =================
+
+  if (curseFilter && badWords.some(w => clean.includes(w))) {
+
+    if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return;
+    }
+
+    await message.delete().catch(() => {});
+
+    message.member.timeout(60 * 1000, "Küfür").catch(() => {});
+
+    return message.channel.send(
+      `${message.author} Küfür yasak! 1 dakika mute yedin.`
+    );
+  }
+
+  // ================= LINK =================
 
   if (isLink(raw)) {
     await message.delete().catch(() => {});
-    message.member.timeout(60 * 60 * 1000).catch(() => {});
+    message.member.timeout(60 * 60 * 1000, "Link").catch(() => {});
     return message.channel.send(`${message.author} Link yasak! 1 saat mute.`);
   }
 
@@ -158,7 +193,6 @@ client.on("messageCreate", async (message) => {
     const level = getLevel(xp[userId]);
     updateRoles(message.member, level);
 
-    // 👑 SEÑOR
     if (money[userId] >= 100000) {
       const role = message.guild.roles.cache.find(r => r.name === "Señor");
 
@@ -167,6 +201,29 @@ client.on("messageCreate", async (message) => {
         message.channel.send(`👑 ${message.author} artık Señor oldu!`);
       }
     }
+  }
+
+  // ================= KÜFÜR TOGGLE =================
+
+  if (message.content.startsWith("!kufur")) {
+
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply("❌ Yetkin yok.");
+    }
+
+    const args = message.content.split(" ")[1];
+
+    if (args === "aç") {
+      curseFilter = true;
+      return message.channel.send("🟢 Küfür filtresi AÇILDI");
+    }
+
+    if (args === "kapat") {
+      curseFilter = false;
+      return message.channel.send("🔴 Küfür filtresi KAPATILDI");
+    }
+
+    return message.reply("Kullanım: !kufur aç / kapat");
   }
 
   // ================= COMMANDS =================
@@ -185,6 +242,7 @@ client.on("messageCreate", async (message) => {
   }
 
   if (message.content === "!toprank") {
+
     const sorted = Object.entries(xp)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
@@ -245,7 +303,7 @@ client.on("messageCreate", async (message) => {
 
     const prize = message.content.split(" ").slice(1).join(" ");
 
-    message.channel.send(`🎉 Çekiliş: **${prize}**`);
+    message.channel.send(`🎉 ÇEKİLİŞ: **${prize}**`);
 
     setTimeout(async () => {
       const msgs = await message.channel.messages.fetch({ limit: 50 });

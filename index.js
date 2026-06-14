@@ -36,7 +36,7 @@ function save() {
   fs.writeFileSync("./money.json", JSON.stringify(money, null, 2));
 }
 
-// ================= SETTINGS =================
+// ================= ROLE IDS =================
 
 const ROLES = {
   caylak: "1515752720433152050",
@@ -74,9 +74,9 @@ async function updateRoles(member, xpValue) {
 
 // ================= LOG =================
 
-function log(guild, text) {
+function log(guild, msg) {
   const ch = guild.channels.cache.find(c => c.name === LOG_CHANNEL);
-  if (ch) ch.send(text);
+  if (ch) ch.send(msg);
 }
 
 // ================= MESSAGE =================
@@ -92,7 +92,7 @@ client.on("messageCreate", async message => {
   if (!money[id]) money[id] = 0;
   if (!cooldown[id]) cooldown[id] = 0;
 
-  // ================= XP + PARA (2 DK) =================
+  // ================= 2 DK XP + PARA =================
   if (now - cooldown[id] >= 120000) {
 
     const xpGain = Math.floor(Math.random() * 21) + 10;
@@ -102,8 +102,8 @@ client.on("messageCreate", async message => {
     money[id] += moneyGain;
 
     cooldown[id] = now;
-    save();
 
+    save();
     updateRoles(message.member, xp[id]);
   }
 
@@ -111,7 +111,6 @@ client.on("messageCreate", async message => {
   if (txt === "!xp") return message.reply(`⭐ XP: ${xp[id]}`);
   if (txt === "!param") return message.reply(`💰 Para: ${money[id]}`);
 
-  // ================= LEADERBOARD =================
   if (txt === "!toprank") {
     const top = Object.entries(xp)
       .sort((a,b)=>b[1]-a[1])
@@ -122,41 +121,42 @@ client.on("messageCreate", async message => {
     return message.channel.send(top || "Veri yok");
   }
 
-  // ================= ADMIN XP =================
+  // ================= XPVER (FIX) =================
   if (txt.startsWith("!xpver")) {
 
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
 
-    const args = txt.split(" ");
+    const args = txt.trim().split(/ +/g);
     const user = message.mentions.members.first();
-    const amount = Number(args.find(x => !isNaN(x)));
+    const amount = parseInt(args.find(x => /^\d+$/.test(x)));
 
     if (!user || !amount)
-      return message.reply("!xpver @kişi 100");
+      return message.reply("Kullanım: !xpver @kişi 100");
 
     xp[user.id] = (xp[user.id] || 0) + amount;
-    save();
 
+    save();
     updateRoles(user, xp[user.id]);
 
     return message.channel.send(`⭐ XP verildi: ${amount}`);
   }
 
-  // ================= ADMIN PARA =================
+  // ================= PARAVER (FIX) =================
   if (txt.startsWith("!paraver")) {
 
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
 
-    const args = txt.split(" ");
+    const args = txt.trim().split(/ +/g);
     const user = message.mentions.members.first();
-    const amount = Number(args.find(x => !isNaN(x)));
+    const amount = parseInt(args.find(x => /^\d+$/.test(x)));
 
     if (!user || !amount)
-      return message.reply("!paraver @kişi 100");
+      return message.reply("Kullanım: !paraver @kişi 100");
 
     money[user.id] = (money[user.id] || 0) + amount;
+
     save();
 
     return message.channel.send(`💰 Para verildi: ${amount}`);
@@ -184,6 +184,7 @@ client.on("messageCreate", async message => {
 // ================= BUTTONS =================
 
 client.on("interactionCreate", async i => {
+
   if (!i.isButton()) return;
 
   const id = i.user.id;
@@ -194,7 +195,7 @@ client.on("interactionCreate", async i => {
   if (i.customId === "buy_xp") {
 
     if (money[id] < 50)
-      return i.reply({ content: "Yetersiz", ephemeral: true });
+      return i.reply({ content: "Yetersiz para", ephemeral: true });
 
     money[id] -= 50;
     xp[id] += 1;
@@ -220,6 +221,7 @@ client.on("interactionCreate", async i => {
       return i.reply({ content: "100K gerekli", ephemeral: true });
 
     money[id] -= 100000;
+
     save();
 
     await member.roles.add(role);

@@ -11,6 +11,7 @@ const fs = require("fs");
 
 const client = new Client({
   intents: [
+    GatewayBitIntents = GatewayBitIntents || GatewayIntentBits; // safety fallback ignored by runtime if not needed
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
@@ -39,13 +40,14 @@ function save() {
 // ================= ROLE IDS =================
 
 const ROLE = {
-  SEÑOR: "1515780264779841689",
   1: "1515752720433152050",
   10: "1515752883600232538",
   20: "1515753054912118796",
   30: "1515770549870264330",
   40: "1515779632761143540"
 };
+
+const SEÑOR_ROLE = "1515780264779841689";
 
 // ================= LOG =================
 
@@ -93,7 +95,7 @@ function getLevel(x) {
   return l;
 }
 
-// ================= LOG FUNC =================
+// ================= LOG =================
 
 function log(g, t) {
   const c = g.channels.cache.find(x => x.name === LOG);
@@ -140,10 +142,8 @@ client.on("messageCreate", async message => {
   if (badWords.some(w => clean(txt).includes(w))) {
 
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-
       await message.delete().catch(() => {});
       message.member.timeout(60 * 1000).catch(() => {});
-
       log(message.guild, `🚫 KÜFÜR ${message.author.tag}`);
       return message.channel.send(`${message.author} 1 dk mute`);
     }
@@ -175,13 +175,6 @@ client.on("messageCreate", async message => {
       }
     }
 
-    if (money[id] >= 100000) {
-      const role = message.guild.roles.cache.get(ROLE.SEÑOR);
-      if (role && !message.member.roles.cache.has(ROLE.SEÑOR)) {
-        message.member.roles.add(role).catch(() => {});
-      }
-    }
-
     save();
   }
 
@@ -204,7 +197,7 @@ client.on("messageCreate", async message => {
   if (txt === "!voice")
     return message.reply(`${Math.floor((voiceTotal[id]||0)/60000)} dk`);
 
-  // ================= ADMIN (SADECE VERME) =================
+  // ================= ADMIN =================
 
   if (txt.startsWith("!xpver")) {
 
@@ -217,8 +210,6 @@ client.on("messageCreate", async message => {
 
     xp[u.id] = (xp[u.id] || 0) + a;
     save();
-
-    return message.channel.send(`⭐ XP verildi`);
   }
 
   if (txt.startsWith("!paraver")) {
@@ -232,15 +223,38 @@ client.on("messageCreate", async message => {
 
     money[u.id] = (money[u.id] || 0) + a;
     save();
+  }
 
-    return message.channel.send(`💰 Para verildi`);
+  // ================= SHOP SYSTEM =================
+
+  if (txt === "!buy señor") {
+
+    if (!money[id] || money[id] < 100000) {
+      return message.reply("💰 100.000 para gerekli");
+    }
+
+    const role = message.guild.roles.cache.get(SEÑOR_ROLE);
+
+    if (!role) return message.reply("Rol bulunamadı");
+
+    if (message.member.roles.cache.has(SEÑOR_ROLE)) {
+      return message.reply("Zaten sahipsin");
+    }
+
+    money[id] -= 100000;
+    save();
+
+    await message.member.roles.add(role).catch(() => {});
+
+    return message.channel.send("👑 Señor satın alındı!");
   }
 
   // ================= ÇEKİLİŞ =================
 
   if (txt.startsWith("!cekilis")) {
 
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
 
     const prize = txt.split(" ").slice(1).join(" ");
 

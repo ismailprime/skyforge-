@@ -2,7 +2,10 @@ const {
   Client,
   GatewayIntentBits,
   Partials,
-  PermissionsBitField
+  PermissionsBitField,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require("discord.js");
 
 const fs = require("fs");
@@ -11,7 +14,6 @@ const fs = require("fs");
 
 const client = new Client({
   intents: [
-    GatewayBitIntents = GatewayBitIntents || GatewayIntentBits; // safety fallback ignored by runtime if not needed
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
@@ -53,7 +55,7 @@ const SEÑOR_ROLE = "1515780264779841689";
 
 const LOG = "📜│herşey-log";
 
-// ================= KÜFÜR FİLTRESİ =================
+// ================= KÜFÜR =================
 
 const badWords = [
   "amk","aq","amq","orospu","oç","piç","s1k","sik","siktir",
@@ -71,13 +73,7 @@ function clean(t) {
 }
 
 function isLink(t) {
-  return (
-    t.includes("http") ||
-    t.includes("discord.gg") ||
-    t.includes(".com") ||
-    t.includes(".net") ||
-    t.includes(".gg")
-  );
+  return t.includes("http") || t.includes("discord.gg") || t.includes(".com") || t.includes(".net") || t.includes(".gg");
 }
 
 // ================= LEVEL =================
@@ -140,7 +136,6 @@ client.on("messageCreate", async message => {
 
   // ================= KÜFÜR =================
   if (badWords.some(w => clean(txt).includes(w))) {
-
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       await message.delete().catch(() => {});
       message.member.timeout(60 * 1000).catch(() => {});
@@ -181,7 +176,6 @@ client.on("messageCreate", async message => {
   // ================= KOMUTLAR =================
 
   if (txt === "!xp") return message.reply(`⭐ XP: ${xp[id]}`);
-  if (txt === "!xpm") return message.reply(`⭐ XP: ${xp[id] || 0}`);
   if (txt === "!param") return message.reply(`💰 Para: ${money[id] || 0}`);
 
   if (txt.startsWith("!rank")) {
@@ -200,53 +194,45 @@ client.on("messageCreate", async message => {
   // ================= ADMIN =================
 
   if (txt.startsWith("!xpver")) {
-
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     const u = message.mentions.members.first();
     const a = Number(txt.split(" ")[2]);
-
-    if (!u || isNaN(a)) return;
 
     xp[u.id] = (xp[u.id] || 0) + a;
     save();
   }
 
   if (txt.startsWith("!paraver")) {
-
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     const u = message.mentions.members.first();
     const a = Number(txt.split(" ")[2]);
 
-    if (!u || isNaN(a)) return;
-
     money[u.id] = (money[u.id] || 0) + a;
     save();
   }
 
-  // ================= SHOP SYSTEM =================
+  // ================= SHOP MENÜ =================
 
-  if (txt === "!buy señor") {
+  if (txt === "!shop") {
 
-    if (!money[id] || money[id] < 100000) {
-      return message.reply("💰 100.000 para gerekli");
-    }
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("buy_xp")
+        .setLabel("⭐ XP (50💰 = 1 XP)")
+        .setStyle(ButtonStyle.Primary),
 
-    const role = message.guild.roles.cache.get(SEÑOR_ROLE);
+      new ButtonBuilder()
+        .setCustomId("buy_senor")
+        .setLabel("👑 Señor (100.000💰)")
+        .setStyle(ButtonStyle.Success)
+    );
 
-    if (!role) return message.reply("Rol bulunamadı");
-
-    if (message.member.roles.cache.has(SEÑOR_ROLE)) {
-      return message.reply("Zaten sahipsin");
-    }
-
-    money[id] -= 100000;
-    save();
-
-    await message.member.roles.add(role).catch(() => {});
-
-    return message.channel.send("👑 Señor satın alındı!");
+    return message.channel.send({
+      content: "🛒 SHOP MENÜSÜ",
+      components: [row]
+    });
   }
 
   // ================= ÇEKİLİŞ =================
@@ -280,6 +266,56 @@ client.on("messageCreate", async message => {
     }, 86400000);
   }
 
+});
+
+// ================= BUTTON SYSTEM =================
+
+client.on("interactionCreate", async interaction => {
+
+  if (!interaction.isButton()) return;
+
+  const id = interaction.user.id;
+
+  if (!xp[id]) xp[id] = 0;
+  if (!money[id]) money[id] = 0;
+
+  // ================= XP SATIN AL =================
+  if (interaction.customId === "buy_xp") {
+
+    if (money[id] < 50)
+      return interaction.reply({ content: "💰 Yetersiz para", ephemeral: true });
+
+    money[id] -= 50;
+    xp[id] += 1;
+
+    save();
+
+    return interaction.reply({ content: "⭐ 1 XP satın alındı", ephemeral: true });
+  }
+
+  // ================= SEÑOR SATIN AL =================
+  if (interaction.customId === "buy_senor") {
+
+    const role = interaction.guild.roles.cache.get(SEÑOR_ROLE);
+
+    if (!role)
+      return interaction.reply({ content: "Rol yok", ephemeral: true });
+
+    const member = await interaction.guild.members.fetch(id);
+
+    if (member.roles.cache.has(SEÑOR_ROLE))
+      return interaction.reply({ content: "Zaten sahipsin", ephemeral: true });
+
+    if (money[id] < 100000)
+      return interaction.reply({ content: "💰 100.000 gerekli", ephemeral: true });
+
+    money[id] -= 100000;
+    save();
+
+    await member.roles.add(role);
+
+    return interaction.reply({ content: "👑 Señor alındı!", ephemeral: true });
+  }
 });
 
 // ================= LOG =================

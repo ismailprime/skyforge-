@@ -39,35 +39,16 @@ function save() {
 // ================= SETTINGS =================
 
 const SEÑOR_ROLE = "1515780264779841689";
-const LOG_CHANNEL = "📜│herşey-log";
+const LOG_CHANNEL_NAME = "📜│herşey-log";
 
-// ================= SYSTEM =================
+// ================= LOG =================
 
-const badWords = [
-  "amk","aq","orospu","oç","piç","sik","siktir","yarak","amcık","göt",
-  "fuck","shit","bitch"
-];
-
-function clean(text) {
-  return text.toLowerCase()
-    .replace(/0/g,"o")
-    .replace(/1/g,"i")
-    .replace(/3/g,"e")
-    .replace(/4/g,"a")
-    .replace(/5/g,"s")
-    .replace(/[^a-zçğıöşü]/g,"");
+function log(guild, text) {
+  const ch = guild.channels.cache.find(c => c.name === LOG_CHANNEL_NAME);
+  if (ch) ch.send(text);
 }
 
-function isLink(text) {
-  return text.includes("http") || text.includes("discord.gg") || text.includes(".com");
-}
-
-function log(guild, msg) {
-  const ch = guild.channels.cache.find(c => c.name === LOG_CHANNEL);
-  if (ch) ch.send(msg);
-}
-
-// ================= MESSAGE SYSTEM =================
+// ================= MAIN SYSTEM =================
 
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
@@ -80,34 +61,17 @@ client.on("messageCreate", async message => {
   if (!money[id]) money[id] = 0;
   if (!cooldown[id]) cooldown[id] = 0;
 
-  // ================= XP + PARA (2 DK) =================
+  // ================= XP + PARA (2 DK SYSTEM) =================
   if (now - cooldown[id] >= 120000) {
-    xp[id] += Math.floor(Math.random() * 20) + 10;
-    money[id] += Math.floor(Math.random() * 900) + 100;
+
+    xp[id] += Math.floor(Math.random() * 21) + 10;
+    money[id] += Math.floor(Math.random() * 901) + 100;
+
     cooldown[id] = now;
     save();
   }
 
-  // ================= KÜFÜR =================
-  if (badWords.some(w => clean(txt).includes(w))) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      await message.delete().catch(() => {});
-      message.member.timeout(60000).catch(() => {});
-      log(message.guild, `🚫 Küfür: ${message.author.tag}`);
-      return message.reply("🚫 1 dk mute");
-    }
-  }
-
-  // ================= LINK =================
-  if (isLink(txt)) {
-    await message.delete().catch(() => {});
-    message.member.timeout(3600000).catch(() => {});
-    log(message.guild, `🔗 Link: ${message.author.tag}`);
-    return;
-  }
-
-  // ================= KOMUTLAR =================
-
+  // ================= BASIC COMMANDS =================
   if (txt === "!xp") return message.reply(`⭐ XP: ${xp[id]}`);
   if (txt === "!param") return message.reply(`💰 Para: ${money[id]}`);
 
@@ -123,13 +87,16 @@ client.on("messageCreate", async message => {
 
   // ================= ADMIN XP =================
   if (txt.startsWith("!xpver")) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
-    const args = txt.split(" ");
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
+
+    const args = txt.trim().split(/ +/g);
     const user = message.mentions.members.first();
-    const amount = Number(args[2]);
+    const amount = Number(args.find(x => !isNaN(x)));
 
-    if (!user || isNaN(amount)) return message.reply("!xpver @kişi 100");
+    if (!user || !amount)
+      return message.reply("!xpver @kişi 100");
 
     xp[user.id] = (xp[user.id] || 0) + amount;
     save();
@@ -139,13 +106,16 @@ client.on("messageCreate", async message => {
 
   // ================= ADMIN PARA =================
   if (txt.startsWith("!paraver")) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
-    const args = txt.split(" ");
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
+
+    const args = txt.trim().split(/ +/g);
     const user = message.mentions.members.first();
-    const amount = Number(args[2]);
+    const amount = Number(args.find(x => !isNaN(x)));
 
-    if (!user || isNaN(amount)) return message.reply("!paraver @kişi 100");
+    if (!user || !amount)
+      return message.reply("!paraver @kişi 100");
 
     money[user.id] = (money[user.id] || 0) + amount;
     save();
@@ -171,9 +141,10 @@ client.on("messageCreate", async message => {
   }
 });
 
-// ================= BUTTONS =================
+// ================= BUTTON SYSTEM =================
 
 client.on("interactionCreate", async i => {
+
   if (!i.isButton()) return;
 
   const id = i.user.id;
@@ -182,22 +153,31 @@ client.on("interactionCreate", async i => {
   if (!money[id]) money[id] = 0;
 
   if (i.customId === "buy_xp") {
-    if (money[id] < 50) return i.reply({ content: "Yetersiz", ephemeral: true });
+
+    if (money[id] < 50)
+      return i.reply({ content: "Yetersiz para", ephemeral: true });
 
     money[id] -= 50;
     xp[id] += 1;
+
     save();
 
     return i.reply({ content: "⭐ XP alındı", ephemeral: true });
   }
 
   if (i.customId === "buy_senor") {
+
     const role = i.guild.roles.cache.get(SEÑOR_ROLE);
     const member = await i.guild.members.fetch(id);
 
-    if (!role) return i.reply({ content: "Rol yok", ephemeral: true });
-    if (member.roles.cache.has(SEÑOR_ROLE)) return i.reply({ content: "Zaten var", ephemeral: true });
-    if (money[id] < 100000) return i.reply({ content: "100K lazım", ephemeral: true });
+    if (!role)
+      return i.reply({ content: "Rol yok", ephemeral: true });
+
+    if (member.roles.cache.has(SEÑOR_ROLE))
+      return i.reply({ content: "Zaten var", ephemeral: true });
+
+    if (money[id] < 100000)
+      return i.reply({ content: "100K gerekli", ephemeral: true });
 
     money[id] -= 100000;
     save();

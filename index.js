@@ -45,12 +45,11 @@ const SEÑOR_ROLE = "1515780264779841689";
 
 const LOG = "📜│herşey-log";
 
-// ================= STRONG KÜFÜR FİLTRESİ =================
+// ================= KÜFÜR FİLTRESİ =================
 
 const badWords = [
-  "amk","aq","a.q","amq","orospu","oç","oc","piç","sik","s1k","siktir",
-  "yarak","amcık","göt","g0t","ibne","kahpe","puşt","kahbe",
-  "fuck","fck","shit","bitch","asshole","dick","pussy","bastard"
+  "amk","aq","orospu","oç","piç","sik","siktir",
+  "yarak","amcık","göt","ibne","fuck","shit","bitch"
 ];
 
 function clean(t) {
@@ -72,6 +71,7 @@ function isLink(t) {
 function getLevel(x) {
   let l = 0;
   let req = 1000;
+
   while (x >= req) {
     x -= req;
     req += 500;
@@ -87,7 +87,7 @@ function log(g, t) {
   if (c) c.send(t);
 }
 
-// ================= MESSAGE SYSTEM =================
+// ================= MESSAGE =================
 
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
@@ -102,12 +102,11 @@ client.on("messageCreate", async message => {
 
   // ================= KÜFÜR =================
   if (badWords.some(w => clean(txt).includes(w))) {
-
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       await message.delete().catch(() => {});
       message.member.timeout(60 * 1000).catch(() => {});
       log(message.guild, `🚫 KÜFÜR ${message.author.tag}`);
-      return message.channel.send(`🚫 1 dk mute`);
+      return message.channel.send("🚫 1 dk mute");
     }
   }
 
@@ -119,11 +118,14 @@ client.on("messageCreate", async message => {
     return;
   }
 
-  // ================= XP + PARA =================
-  if (now - cooldown[id] > 120000) {
+  // ================= XP + PARA (2 DK SYSTEM) =================
+  if (now - cooldown[id] >= 120000) {
 
-    xp[id] += Math.floor(Math.random() * 20) + 10;
-    money[id] += Math.floor(Math.random() * 900) + 100;
+    const xpGain = Math.floor(Math.random() * 21) + 10;
+    const moneyGain = Math.floor(Math.random() * 901) + 100;
+
+    xp[id] += xpGain;
+    money[id] += moneyGain;
 
     cooldown[id] = now;
     save();
@@ -146,32 +148,36 @@ client.on("messageCreate", async message => {
 
   // ================= ADMIN XP =================
   if (txt.startsWith("!xpver")) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
-    const u = message.mentions.members.first();
-    const a = parseInt(txt.split(" ")[2]);
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
 
-    if (!u || isNaN(a)) return;
+    const user = message.mentions.members.first();
+    const amount = parseInt(txt.split(" ")[2]);
 
-    xp[u.id] = (xp[u.id] || 0) + a;
+    if (!user || isNaN(amount)) return;
+
+    xp[user.id] = (xp[user.id] || 0) + amount;
     save();
 
-    return message.channel.send("⭐ XP verildi");
+    return message.channel.send(`⭐ XP verildi`);
   }
 
   // ================= ADMIN PARA =================
   if (txt.startsWith("!paraver")) {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
-    const u = message.mentions.members.first();
-    const a = parseInt(txt.split(" ")[2]);
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
 
-    if (!u || isNaN(a)) return;
+    const user = message.mentions.members.first();
+    const amount = parseInt(txt.split(" ")[2]);
 
-    money[u.id] = (money[u.id] || 0) + a;
+    if (!user || isNaN(amount)) return;
+
+    money[user.id] = (money[user.id] || 0) + amount;
     save();
 
-    return message.channel.send("💰 Para verildi");
+    return message.channel.send(`💰 Para verildi`);
   }
 
   // ================= SHOP =================
@@ -180,7 +186,7 @@ client.on("messageCreate", async message => {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("buy_xp")
-        .setLabel("⭐ XP (50💰)")
+        .setLabel("⭐ XP (50💰 = 1 XP)")
         .setStyle(ButtonStyle.Primary),
 
       new ButtonBuilder()
@@ -194,6 +200,7 @@ client.on("messageCreate", async message => {
       components: [row]
     });
   }
+
 });
 
 // ================= BUTTON SYSTEM =================
@@ -218,7 +225,7 @@ client.on("interactionCreate", async interaction => {
 
     save();
 
-    return interaction.reply({ content: "⭐ +1 XP", ephemeral: true });
+    return interaction.reply({ content: "⭐ XP alındı", ephemeral: true });
   }
 
   // SEÑOR BUY
@@ -234,7 +241,7 @@ client.on("interactionCreate", async interaction => {
       return interaction.reply({ content: "Zaten var", ephemeral: true });
 
     if (money[id] < 100000)
-      return interaction.reply({ content: "💰 100K lazım", ephemeral: true });
+      return interaction.reply({ content: "💰 100K gerekli", ephemeral: true });
 
     money[id] -= 100000;
     save();

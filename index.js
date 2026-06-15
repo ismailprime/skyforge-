@@ -10,7 +10,7 @@ const {
 
 const fs = require("fs");
 
-// ================= CLIENT =================
+// ================= BOT =================
 
 const client = new Client({
   intents: [
@@ -19,11 +19,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers
   ],
-  partials: [
-    Partials.Message,
-    Partials.Channel,
-    Partials.GuildMember
-  ]
+  partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
 
 // ================= DATA =================
@@ -43,7 +39,7 @@ function save() {
   fs.writeFileSync("./money.json", JSON.stringify(money, null, 2));
 }
 
-// ================= AYARLAR =================
+// ================= ROLLER =================
 
 const ROLES = {
   caylak: "1515752720433152050",
@@ -53,37 +49,15 @@ const ROLES = {
   special: "1515779632761143540"
 };
 
+// ================= SEÑOR =================
+
 const SEÑOR_ROLE = "1515780264779841689";
+
+// ================= LOG =================
 
 const LOG_CHANNEL = "📜│herşey-log";
 
-// ================= KÜFÜR =================
-
-const badWords = [
-  "amk","aq","amq","mk","mq","amına","amina",
-  "amcık","amcik","orospu","oruspu","oç","oc",
-  "piç","pic","sik","sikerim","siktir","yarak",
-  "yarrak","göt","got","ibne","kahpe","pezevenk",
-  "fuck","shit","bitch","ananı","ananisikeyim",
-  "ananıskm","bacını","bacinisikeyim","salak",
-  "mal","aptal","gerizekalı","gerizekali",
-  "yavşak","yavsak","puşt","pust","dangalak",
-  "eşşek","essek","gavat","sürtük","surtuk",
-  "şerefsiz","serefsiz","namussuz"
-];
-
-function clean(text) {
-  return text.toLowerCase()
-    .replace(/0/g,"o")
-    .replace(/1/g,"i")
-    .replace(/3/g,"e")
-    .replace(/4/g,"a")
-    .replace(/5/g,"s")
-    .replace(/@/g,"a")
-    .replace(/[^a-zçğıöşü]/g,"");
-}
-
-// ================= ROL SİSTEMİ =================
+// ================= ROLE SYSTEM =================
 
 async function updateRoles(member, xpValue) {
 
@@ -97,9 +71,7 @@ async function updateRoles(member, xpValue) {
     special: g.roles.cache.get(ROLES.special)
   };
 
-  await member.roles.remove(
-    Object.values(r)
-  ).catch(() => {});
+  await member.roles.remove(Object.values(r)).catch(() => {});
 
   if (xpValue >= 50000)
     return member.roles.add(r.special).catch(()=>{});
@@ -120,16 +92,11 @@ async function updateRoles(member, xpValue) {
 // ================= LOG =================
 
 function log(guild, msg) {
-
-  const ch =
-    guild.channels.cache.find(
-      c => c.name === LOG_CHANNEL
-    );
-
+  const ch = guild.channels.cache.find(c => c.name === LOG_CHANNEL);
   if (ch) ch.send(msg);
 }
 
-// ================= MESAJ =================
+// ================= MESSAGE =================
 
 client.on("messageCreate", async message => {
 
@@ -143,48 +110,12 @@ client.on("messageCreate", async message => {
   if (!money[id]) money[id] = 0;
   if (!cooldown[id]) cooldown[id] = 0;
 
-  // ================= KÜFÜR =================
-
-  const cleaned = clean(txt);
-
-  if (
-    badWords.some(
-      word => cleaned.includes(clean(word))
-    )
-  ) {
-
-    if (
-      !message.member.permissions.has(
-        PermissionsBitField.Flags.Administrator
-      )
-    ) {
-
-      await message.delete().catch(()=>{});
-
-      await message.member.timeout(
-        5 * 60 * 1000
-      ).catch(()=>{});
-
-      log(
-        message.guild,
-        `🚫 Küfür: ${message.author.tag}`
-      );
-
-      return message.channel.send(
-        `🚫 ${message.author} küfür ettiği için 5 dk mute yedi.`
-      );
-    }
-  }
-
   // ================= XP + PARA =================
 
   if (now - cooldown[id] >= 120000) {
 
-    const xpGain =
-      Math.floor(Math.random() * 21) + 10;
-
-    const moneyGain =
-      Math.floor(Math.random() * 901) + 100;
+    const xpGain = Math.floor(Math.random() * 21) + 10;
+    const moneyGain = Math.floor(Math.random() * 901) + 100;
 
     xp[id] += xpGain;
     money[id] += moneyGain;
@@ -192,131 +123,87 @@ client.on("messageCreate", async message => {
     cooldown[id] = now;
 
     save();
-
     updateRoles(message.member, xp[id]);
   }
 
-  // ================= KOMUTLAR =================
+  // ================= BASIC =================
 
   if (txt === "!xp")
-    return message.reply(
-      `⭐ XP: ${xp[id]}`
-    );
+    return message.reply(`⭐ XP: ${xp[id]}`);
 
   if (txt === "!param")
-    return message.reply(
-      `💰 Para: ${money[id]}`
-    );
-
-  // ================= TOPRANK =================
+    return message.reply(`💰 Para: ${money[id]}`);
 
   if (txt === "!toprank") {
 
     const top = Object.entries(xp)
       .sort((a,b)=>b[1]-a[1])
       .slice(0,10)
-      .map((x,i)=>
-        `${i+1}. <@${x[0]}> - ${x[1]} XP`
-      )
+      .map((x,i)=>`${i+1}. <@${x[0]}> - ${x[1]} XP`)
       .join("\n");
 
-    return message.channel.send(
-      top || "Veri yok"
-    );
+    return message.channel.send(top || "Veri yok");
   }
 
-  // ================= XPVER =================
+  // ================= ADMIN XP =================
 
   if (txt.startsWith("!xpver")) {
 
-    if (
-      !message.member.permissions.has(
-        PermissionsBitField.Flags.Administrator
-      )
-    ) return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
 
-    const args =
-      txt.trim().split(/ +/g);
-
-    const user =
-      message.mentions.members.first();
-
-    const amount =
-      parseInt(
-        args.find(x => /^\d+$/.test(x))
-      );
+    const args = txt.split(" ");
+    const user = message.mentions.members.first();
+    const amount = parseInt(args.find(x => /^\d+$/.test(x)));
 
     if (!user || !amount)
-      return message.reply(
-        "!xpver @kişi 100"
-      );
+      return message.reply("!xpver @kişi 100");
 
-    xp[user.id] =
-      (xp[user.id] || 0) + amount;
+    xp[user.id] = (xp[user.id] || 0) + amount;
 
     save();
-
     updateRoles(user, xp[user.id]);
 
-    return message.channel.send(
-      `⭐ XP verildi: ${amount}`
-    );
+    return message.channel.send(`⭐ XP verildi: ${amount}`);
   }
 
-  // ================= PARAVER =================
+  // ================= ADMIN PARA =================
 
   if (txt.startsWith("!paraver")) {
 
-    if (
-      !message.member.permissions.has(
-        PermissionsBitField.Flags.Administrator
-      )
-    ) return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
 
-    const args =
-      txt.trim().split(/ +/g);
-
-    const user =
-      message.mentions.members.first();
-
-    const amount =
-      parseInt(
-        args.find(x => /^\d+$/.test(x))
-      );
+    const args = txt.split(" ");
+    const user = message.mentions.members.first();
+    const amount = parseInt(args.find(x => /^\d+$/.test(x)));
 
     if (!user || !amount)
-      return message.reply(
-        "!paraver @kişi 100"
-      );
+      return message.reply("!paraver @kişi 100");
 
-    money[user.id] =
-      (money[user.id] || 0) + amount;
+    money[user.id] = (money[user.id] || 0) + amount;
 
     save();
 
-    return message.channel.send(
-      `💰 Para verildi: ${amount}`
-    );
+    return message.channel.send(`💰 Para verildi: ${amount}`);
   }
 
   // ================= SHOP =================
 
   if (txt === "!shop") {
 
-    const row =
-      new ActionRowBuilder()
-      .addComponents(
+    const row = new ActionRowBuilder().addComponents(
 
-        new ButtonBuilder()
-          .setCustomId("buy_xp")
-          .setLabel("⭐ XP (50💰)")
-          .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("buy_xp")
+        .setLabel("⭐ XP (50💰)")
+        .setStyle(ButtonStyle.Primary),
 
-        new ButtonBuilder()
-          .setCustomId("buy_senor")
-          .setLabel("👑 Señor (100K)")
-          .setStyle(ButtonStyle.Success)
-      );
+      new ButtonBuilder()
+        .setCustomId("buy_senor")
+        .setLabel("👑 Señor (100K)")
+        .setStyle(ButtonStyle.Success)
+    );
 
     return message.channel.send({
       content: "🛒 SHOP",
@@ -328,96 +215,49 @@ client.on("messageCreate", async message => {
 
   if (txt === "!cekilis") {
 
-    if (
-      !message.member.permissions.has(
-        PermissionsBitField.Flags.Administrator
-      )
-    ) return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
 
-    const giveaway =
-      await message.channel.send(
-
+    const giveaway = await message.channel.send(
 `🎉 **ÇEKİLİŞ BAŞLADI!**
 
 🎁 Katılmak için 🎉 emojisine bas!
 
 ⏰ Süre: 1 Gün`
-      );
+    );
 
     await giveaway.react("🎉");
-
-    const duration = 86400000;
 
     setTimeout(async () => {
 
       try {
 
-        const msg =
-          await message.channel.messages.fetch(
-            giveaway.id
-          );
+        const msg = await message.channel.messages.fetch(giveaway.id);
 
-        const reaction =
-          msg.reactions.cache.get("🎉");
+        const reaction = msg.reactions.cache.get("🎉");
 
         if (!reaction)
-          return message.channel.send(
-            "❌ Katılım yok."
-          );
+          return message.channel.send("❌ Katılım yok.");
 
-        const users =
-          await reaction.users.fetch();
+        const users = await reaction.users.fetch();
 
-        const participants =
-          users.filter(user => {
+        const participants = users.filter(u => !u.bot);
 
-            const member =
-              message.guild.members.cache.get(
-                user.id
-              );
-
-            if (!member) return false;
-
-            if (user.bot) return false;
-
-            if (
-              member.permissions.has(
-                PermissionsBitField.Flags.Administrator
-              )
-            ) return false;
-
-            return true;
-          });
-
-        const arr =
-          [...participants.values()];
+        const arr = [...participants.values()];
 
         if (arr.length <= 0)
-          return message.channel.send(
-            "❌ Geçerli katılım yok."
-          );
+          return message.channel.send("❌ Geçerli katılım yok.");
 
-        const winner =
-          arr[
-            Math.floor(
-              Math.random() * arr.length
-            )
-          ];
+        const winner = arr[Math.floor(Math.random() * arr.length)];
 
-        message.channel.send(
-          `🎉 Tebrikler <@${winner.id}> kazandı!`
-        );
+        message.channel.send(`🎉 Kazanan: <@${winner.id}>`);
 
       } catch (err) {
-
         console.log(err);
-
-        message.channel.send(
-          "❌ Çekiliş sırasında hata oluştu."
-        );
+        message.channel.send("❌ Çekiliş hata verdi.");
       }
 
-    }, duration);
+    }, 86400000);
   }
 });
 
@@ -432,62 +272,33 @@ client.on("interactionCreate", async i => {
   if (!xp[id]) xp[id] = 0;
   if (!money[id]) money[id] = 0;
 
-  // XP SATIN AL
-
   if (i.customId === "buy_xp") {
 
     if (money[id] < 50)
-      return i.reply({
-        content: "Yetersiz para",
-        ephemeral: true
-      });
+      return i.reply({ content: "Yetersiz para", ephemeral: true });
 
     money[id] -= 50;
     xp[id] += 1;
 
     save();
-
     updateRoles(i.member, xp[id]);
 
-    return i.reply({
-      content: "⭐ XP alındı",
-      ephemeral: true
-    });
+    return i.reply({ content: "⭐ XP alındı", ephemeral: true });
   }
-
-  // SEÑOR SATIN AL
 
   if (i.customId === "buy_senor") {
 
-    const role =
-      i.guild.roles.cache.get(
-        SEÑOR_ROLE
-      );
-
-    const member =
-      await i.guild.members.fetch(id);
+    const role = i.guild.roles.cache.get(SEÑOR_ROLE);
+    const member = await i.guild.members.fetch(id);
 
     if (!role)
-      return i.reply({
-        content: "Rol yok",
-        ephemeral: true
-      });
+      return i.reply({ content: "Rol yok", ephemeral: true });
 
-    if (
-      member.roles.cache.has(
-        SEÑOR_ROLE
-      )
-    )
-      return i.reply({
-        content: "Zaten var",
-        ephemeral: true
-      });
+    if (member.roles.cache.has(SEÑOR_ROLE))
+      return i.reply({ content: "Zaten var", ephemeral: true });
 
     if (money[id] < 100000)
-      return i.reply({
-        content: "100K gerekli",
-        ephemeral: true
-      });
+      return i.reply({ content: "100K gerekli", ephemeral: true });
 
     money[id] -= 100000;
 
@@ -495,48 +306,20 @@ client.on("interactionCreate", async i => {
 
     await member.roles.add(role);
 
-    return i.reply({
-      content: "👑 Señor verildi",
-      ephemeral: true
-    });
+    return i.reply({ content: "👑 Señor verildi", ephemeral: true });
   }
 });
 
 // ================= LOG =================
 
 client.on("messageDelete", m => {
-
   if (!m.guild) return;
-
-  log(
-    m.guild,
-    `🗑 ${m.author?.tag}: ${m.content}`
-  );
+  log(m.guild, `🗑 ${m.author?.tag}: ${m.content}`);
 });
 
 client.on("messageUpdate", (o,n) => {
-
   if (!o.guild) return;
-
-  log(
-    o.guild,
-`✏️ ${o.author?.tag}
-
-Eski:
-${o.content}
-
-Yeni:
-${n.content}`
-  );
-});
-
-// ================= READY =================
-
-client.on("ready", () => {
-
-  console.log(
-    `${client.user.tag} aktif!`
-  );
+  log(o.guild, `✏️ ${o.author?.tag} mesaj düzenledi`);
 });
 
 // ================= LOGIN =================

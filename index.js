@@ -7,11 +7,12 @@ const {
   PermissionsBitField,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  StringSelectMenuBuilder
 } = require("discord.js");
 
 const fs = require("fs");
-const { AuditLogEvent } = require("discord.js");
+
 // ================= CLIENT =================
 
 const client = new Client({
@@ -30,170 +31,26 @@ const client = new Client({
 
 // ================= IDS =================
 
-const OWNER_ID = "1003708560728920165";
-
 const LOG_CHANNEL_ID = "1512629605830496257";
-
 const MEMBER_ROLE = "1506370448814899280";
-
-const SENOR_ROLE = "1515780264779841689";
-
-// ================= RANK ROLES =================
-
-const ROLES = {
-  caylak: "1515752720433152050",
-  aktif: "1515752883600232538",
-  sadik: "1515753054912118796",
-  daimi: "1515770549870264330",
-  special: "1515779632761143540"
-};
+const SUPPORT_CHANNEL_ID = "1506387613559423007";
 
 // ================= DATA =================
 
-function load(file, def) {
-  return fs.existsSync(file)
-    ? JSON.parse(fs.readFileSync(file))
-    : def;
-}
-
-function save(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-let xp = load("./data/xp.json", {});
-let money = load("./data/money.json", {});
-let cooldown = {};
 let curse = {};
-let giveaways = {};
 const messageCache = new Map();
+const giveaways = {};
+
 // ================= BAD WORDS =================
 
 const BAD_WORDS = [
-
-  // Türkçe
-  "amk",
-  "a.mk",
-  "aq",
-  "amq",
-  "amına",
-  "amina",
-  "amini",
-  "amcık",
-  "amcik",
-  "orospu",
-  "orosb",
-  "oc",
-  "oç",
-  "piç",
-  "pic",
-  "sik",
-  "sikerim",
-  "siktir",
-  "sikik",
-  "yarak",
-  "yarrak",
-  "göt",
-  "got",
-  "götveren",
-  "ibne",
-  "eşşek",
-  "mal",
-  "salak",
-  "gerizekalı",
-  "aptal",
-  "kahpe",
-  "pezevenk",
-  "şerefsiz",
-  "haysiyetsiz",
-  "ananı",
-  "anan",
-  "bacını",
-  "bacin",
-  "ananıskm",
-  "anneskm",
-  "mk",
-  "aq",
-  "sg",
-  "sg git",
-  "yavşak",
-  "lavuk",
-  "dangalak",
-  "geri zekalı",
-  "gerizekali",
-  "aptal herif",
-  "sürtük",
-  "puşt",
-  "it oğlu it",
-  "salak oç",
-  "am biti",
-  "gavat",
-  "dalyarak",
-  "am hoşafı",
-  "amcık hoşafı",
-  "dingil",
-  "gerzek",
-  "malsın",
-  "ezik",
-  "am surat",
-  "sik kafalı",
-  "göt kafa",
-  "beyinsiz",
-
-  // İngilizce
-  "fuck",
-  "fucking",
-  "motherfucker",
-  "bitch",
-  "shit",
-  "asshole",
-  "dick",
-  "wtf",
-  "idiot",
-  "stupid",
-  "bastard",
-  "slut",
-  "whore",
-  "retard",
-  "dumbass",
-  "moron",
-  "loser",
-  "nigga",
-  "nigger",
-  "faggot",
-  "sucker",
-  "jerk",
-  "piece of shit"
+  "amk","aq","orospu","oç","piç","sik","yarak","göt",
+  "fuck","shit","bitch","idiot","stupid"
 ];
 
 // ================= LINK =================
 
 const LINK_REGEX = /(https?:\/\/|www\.|discord\.gg|discord\.com\/invite)/i;
-
-// ================= ROLE SYSTEM =================
-
-async function updateRoles(member, xpValue) {
-
-  const allRoles = Object.values(ROLES)
-    .map(id => member.guild.roles.cache.get(id))
-    .filter(Boolean);
-
-  await member.roles.remove(allRoles).catch(()=>{});
-
-  if (xpValue >= 50000)
-    return member.roles.add(ROLES.special).catch(()=>{});
-
-  if (xpValue >= 25000)
-    return member.roles.add(ROLES.daimi).catch(()=>{});
-
-  if (xpValue >= 14000)
-    return member.roles.add(ROLES.sadik).catch(()=>{});
-
-  if (xpValue >= 6500)
-    return member.roles.add(ROLES.aktif).catch(()=>{});
-
-  if (xpValue >= 1000)
-    return member.roles.add(ROLES.caylak).catch(()=>{});
-}
 
 // ================= READY =================
 
@@ -212,295 +69,200 @@ client.on("guildMemberAdd", async (member) => {
   );
 
   if (channel) {
-    channel.send(
-      `👋 Hoşgeldin <@${member.id}>!\n` +
-      `📊 Sen ${member.guild.memberCount}. üyesisin 🎉`
-    );
+    channel.send(`👋 Hoşgeldin <@${member.id}>`);
   }
 
   const log = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-  if (log) {
-    log.send(`📥 Yeni üye geldi: <@${member.id}>`);
-  }
+  if (log) log.send(`📥 Yeni üye: <@${member.id}>`);
 });
 
-// ================= MESSAGE DELETE LOG =================
+// ================= LOG =================
 
 client.on("messageDelete", async (message) => {
 
   if (!message.guild) return;
 
   const log = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-  if (!log) return;
-
-  const cached = messageCache.get(message.id);
-
-  let executor = "Bilinmiyor";
-
-  try {
-    const audit = await message.guild.fetchAuditLogs({
-      limit: 1,
-      type: AuditLogEvent.MessageDelete
-    });
-
-    const entry = audit.entries.first();
-    if (entry) executor = entry.executor?.tag;
-  } catch {}
-
-  log.send(
-    `🗑️ MESAJ SİLİNDİ\n\n` +
-    `👤 Yazan: ${cached?.author || message.author?.tag || "unknown"}\n` +
-    `🛠️ Silen: ${executor}\n` +
-    `💬 Mesaj: ${cached?.content || message.content || "boş"}`
-  );
-
-  messageCache.delete(message.id);
+  if (log) {
+    log.send(`🗑️ Silindi: ${message.author?.tag} → ${message.content || "boş"}`);
+  }
 });
 
-// ================= MESSAGE EDIT LOG =================
-client.on("messageUpdate", async (oldMessage, newMessage) => {
+client.on("messageUpdate", async (oldM, newM) => {
 
-  if (!oldMessage.guild) return;
-  if (oldMessage.content === newMessage.content) return;
+  if (!oldM.guild || oldM.content === newM.content) return;
 
-  const log = oldMessage.guild.channels.cache.get(LOG_CHANNEL_ID);
-  if (!log) return;
+  const log = oldM.guild.channels.cache.get(LOG_CHANNEL_ID);
+  if (log) {
+    log.send(`✏️ Edit: ${oldM.author?.tag}\nEski: ${oldM.content}\nYeni: ${newM.content}`);
+  }
+});
 
-  log.send(
-    `✏️ MESAJ DÜZENLENDİ\n\n` +
-    `👤 Kullanıcı: ${oldMessage.author?.tag || "unknown"}\n` +
-    `📌 Eski: ${oldMessage.content || "boş"}\n` +
-    `📌 Yeni: ${newMessage.content || "boş"}`
-  );
-}); =================
+// ================= MESSAGE =================
 
 client.on("messageCreate", async (message) => {
-messageCache.set(message.id, {
-  content: message.content,
-  author: message.author?.tag,
-  authorId: message.author?.id
-});
-  if (message.author.bot) return;
-  if (!message.guild) return;
 
-  const id = message.author.id;
+  messageCache.set(message.id, {
+    content: message.content,
+    author: message.author?.tag
+  });
 
-  const now = Date.now();
+  if (message.author.bot || !message.guild) return;
 
   const txt = message.content.toLowerCase();
+  const member = message.member;
 
-  if (!xp[id]) xp[id] = 0;
-  if (!money[id]) money[id] = 0;
-  if (!cooldown[id]) cooldown[id] = 0;
-  if (!curse[id]) curse[id] = 0;
+  const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
 
-  const isAdmin =
-    message.member.permissions.has(
-      PermissionsBitField.Flags.Administrator
-    );
-
-  // ================= LINK SYSTEM =================
+  // ================= LINK =================
 
   if (LINK_REGEX.test(txt)) {
+    if (isAdmin) return;
 
+    await message.delete().catch(()=>{});
+    member.timeout(60 * 60 * 1000).catch(()=>{});
+
+    return message.channel.send("🔗 Link yasak → 1 saat mute");
+  }
+
+  // ================= SWEAR =================
+
+  if (BAD_WORDS.some(w => txt.includes(w))) {
     if (isAdmin) return;
 
     await message.delete().catch(()=>{});
 
-    // 1 SAAT MUTE
-    message.member.timeout(60 * 60 * 1000).catch(()=>{});
+    curse[member.id] = (curse[member.id] || 0) + 1;
 
-    return message.channel.send(
-      "🔗 Link yasak → 1 saat mute"
-    );
-  }
-
-  // ================= SWEAR SYSTEM =================
-
-  const clean = txt
-    .replace(/0/g,"o")
-    .replace(/1/g,"i")
-    .replace(/3/g,"e")
-    .replace(/4/g,"a")
-    .replace(/5/g,"s")
-    .replace(/7/g,"t");
-
-  if (BAD_WORDS.some(word => clean.includes(word))) {
-
-    if (isAdmin) return;
-
-    await message.delete().catch(()=>{});
-
-    curse[id]++;
-
-    if (curse[id] >= 3) {
-
-      curse[id] = 0;
-
-      message.member.timeout(5 * 60 * 1000).catch(()=>{});
-
-      return message.channel.send(
-        "⚠️ 3 küfür → 5 dakika mute"
-      );
+    if (curse[member.id] >= 3) {
+      curse[member.id] = 0;
+      member.timeout(5 * 60 * 1000).catch(()=>{});
+      return message.channel.send("⚠️ 3 küfür → 5 dk mute");
     }
 
-    return message.channel.send(
-      `⚠️ Küfür uyarısı (${curse[id]}/3)`
-    );
+    return message.channel.send("⚠️ Küfür uyarısı");
   }
+});
 
-  // ================= XP + MONEY =================
+// ================= TICKET PANEL (SADECE DESTEK KANALI) =================
 
-  if (now - cooldown[id] >= 120000) {
+client.on("messageCreate", async (message) => {
 
-    let xpGain =
-      Math.floor(Math.random() * 21) + 10;
+  if (message.author.bot || !message.guild) return;
 
-    let moneyGain =
-      Math.floor(Math.random() * 901) + 100;
+  if (message.content === "!ticketpanel") {
 
-    // SENOR BOOST
-    if (
-      message.member.roles.cache.has(SENOR_ROLE)
-    ) {
-      xpGain = Math.floor(xpGain * 1.3);
-      moneyGain = Math.floor(moneyGain * 1.3);
+    if (message.channel.id !== SUPPORT_CHANNEL_ID) {
+      return message.reply("❌ Bu komut sadece destek kanalında kullanılabilir.");
     }
 
-    xp[id] += xpGain;
-    money[id] += moneyGain;
-
-    cooldown[id] = now;
-
-    save("./data/xp.json", xp);
-    save("./data/money.json", money);
-
-    updateRoles(message.member, xp[id]);
-  }
-
-  // ================= COMMANDS =================
-
-  if (message.content === "!xp") {
-    return message.reply(
-      `⭐ XP'n: ${xp[id]}`
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("ticket_open_menu")
+        .setLabel("🎫 Ticket Aç")
+        .setStyle(ButtonStyle.Success)
     );
-  }
-
-  if (message.content === "!param") {
-    return message.reply(
-      `💰 Paran: ${money[id]}`
-    );
-  }
-
-  if (message.content === "!top10") {
-
-    const top = Object.entries(xp)
-      .sort((a,b) => b[1] - a[1])
-      .slice(0,10)
-      .map((user, i) =>
-        `#${i+1} <@${user[0]}> → ⭐ ${user[1]}`
-      )
-      .join("\n");
-
-    return message.channel.send(
-      `🏆 TOP 10 XP\n\n${top}`
-    );
-  }
-
-  // ================= SHOP =================
-
-  if (message.content === "!shop") {
-
-    const row = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId("buy_senor")
-          .setLabel("👑 SENOR (250K)")
-          .setStyle(ButtonStyle.Primary)
-      );
 
     return message.channel.send({
-      content: "🛒 SHOP MENÜSÜ",
+      content: "🎫 Ticket sistemi aktif",
       components: [row]
     });
   }
+});
 
-  // ================= GIVEAWAY =================
+// ================= INTERACTIONS =================
 
-  if (message.content.startsWith("!cekilis")) {
+client.on("interactionCreate", async (interaction) => {
 
-    if (
-      !message.member.permissions.has(
-        PermissionsBitField.Flags.Administrator
-      )
-    ) return;
+  if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
-    const time =
-      message.content.split(" ")[1] || "1m";
+  // ================= OPEN MENU =================
 
-    let ms = 60000;
+  if (interaction.customId === "ticket_open_menu") {
 
-    if (time.endsWith("m"))
-      ms = parseInt(time) * 60000;
+    const menu = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("ticket_category")
+        .setPlaceholder("📂 Kategori seç")
+        .addOptions(
+          { label: "Destek", value: "destek", emoji: "🛠️" },
+          { label: "Bug", value: "bug", emoji: "🐞" },
+          { label: "Şikayet", value: "sikayet", emoji: "⚠️" },
+          { label: "Diğer", value: "diger", emoji: "📩" }
+        )
+    );
 
-    if (time.endsWith("h"))
-      ms = parseInt(time) * 3600000;
+    return interaction.reply({
+      content: "📂 Kategori seç",
+      components: [menu],
+      ephemeral: true
+    });
+  }
 
-    if (time.endsWith("d"))
-      ms = parseInt(time) * 86400000;
+  // ================= CREATE TICKET =================
 
-    const row = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId("join_giveaway")
-          .setLabel("🎉 Katıl")
-          .setStyle(ButtonStyle.Success)
-      );
+  if (interaction.customId === "ticket_category") {
 
-    const msg = await message.channel.send({
-      content:
-        `🎉 ÇEKİLİŞ BAŞLADI!\n` +
-        `⏰ Süre: ${time}`,
+    const category = interaction.values[0];
+    const user = interaction.user;
+
+    const channel = await interaction.guild.channels.create({
+      name: `ticket-${category}-${user.username}`,
+      type: 0,
+      permissionOverwrites: [
+        {
+          id: interaction.guild.id,
+          deny: ["ViewChannel"]
+        },
+        {
+          id: user.id,
+          allow: ["ViewChannel","SendMessages","ReadMessageHistory"]
+        }
+      ]
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("ticket_close")
+        .setLabel("🔒 Kapat")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    channel.send({
+      content: `🎫 Ticket | ${category}`,
       components: [row]
     });
 
-    giveaways[msg.id] = [];
+    return interaction.reply({
+      content: `✅ Ticket açıldı: ${channel}`,
+      ephemeral: true
+    });
+  }
+
+  // ================= CLOSE =================
+
+  if (interaction.customId === "ticket_close") {
+
+    const channel = interaction.channel;
+
+    if (!channel.name.startsWith("ticket-")) {
+      return interaction.reply({
+        content: "❌ Bu ticket değil",
+        ephemeral: true
+      });
+    }
+
+    await interaction.reply("🔒 Kapatılıyor...");
 
     setTimeout(() => {
-
-      const users = giveaways[msg.id];
-
-      if (!users || users.length <= 0) {
-        return message.channel.send(
-          "❌ Çekilişe kimse katılmadı"
-        );
-      }
-
-      const winner =
-        users[Math.floor(Math.random() * users.length)];
-
-      message.channel.send(
-        `🏆 Kazanan: <@${winner}>`
-      );
-
-      const log =
-        message.guild.channels.cache.get(
-          LOG_CHANNEL_ID
-        );
-
-      if (log) {
-        log.send(
-          `🎉 Çekiliş bitti → Kazanan: <@${winner}>`
-        );
-      }
-
-    }, ms);
+      channel.delete().catch(()=>{});
+    }, 2000);
   }
+});
 
-  // ================= OWNER XP GIVE =================
+// ================= LOGIN =================
 
-  if (message.content.startsWith("!xpver")) {
+client.login(process.env.TOKEN);if (message.content.startsWith("!xpver")) {
 
     if (message.author.id !== OWNER_ID) return;
 

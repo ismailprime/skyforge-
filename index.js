@@ -11,10 +11,6 @@ const {
   StringSelectMenuBuilder
 } = require("discord.js");
 
-const fs = require("fs");
-
-// ================= CLIENT =================
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -33,13 +29,6 @@ const client = new Client({
 
 const LOG_CHANNEL_ID = "1512629605830496257";
 const MEMBER_ROLE = "1506370448814899280";
-const SUPPORT_CHANNEL_ID = "1506387613559423007";
-
-// ================= DATA =================
-
-let curse = {};
-const messageCache = new Map();
-const giveaways = {};
 
 // ================= BAD WORDS =================
 
@@ -76,7 +65,7 @@ client.on("guildMemberAdd", async (member) => {
   if (log) log.send(`📥 Yeni üye: <@${member.id}>`);
 });
 
-// ================= LOG =================
+// ================= LOG SYSTEM =================
 
 client.on("messageDelete", async (message) => {
 
@@ -102,11 +91,6 @@ client.on("messageUpdate", async (oldM, newM) => {
 
 client.on("messageCreate", async (message) => {
 
-  messageCache.set(message.id, {
-    content: message.content,
-    author: message.author?.tag
-  });
-
   if (message.author.bot || !message.guild) return;
 
   const txt = message.content.toLowerCase();
@@ -131,29 +115,21 @@ client.on("messageCreate", async (message) => {
     if (isAdmin) return;
 
     await message.delete().catch(()=>{});
+    member.timeout(5 * 60 * 1000).catch(()=>{});
 
-    curse[member.id] = (curse[member.id] || 0) + 1;
-
-    if (curse[member.id] >= 3) {
-      curse[member.id] = 0;
-      member.timeout(5 * 60 * 1000).catch(()=>{});
-      return message.channel.send("⚠️ 3 küfür → 5 dk mute");
-    }
-
-    return message.channel.send("⚠️ Küfür uyarısı");
+    return message.channel.send("⚠️ Küfür → 5 dk mute");
   }
-});
 
-// ================= TICKET PANEL (SADECE DESTEK KANALI) =================
-
-client.on("messageCreate", async (message) => {
-
-  if (message.author.bot || !message.guild) return;
+  // ================= TICKET PANEL (ADMIN ONLY) =================
 
   if (message.content === "!ticketpanel") {
 
-    if (message.channel.id !== SUPPORT_CHANNEL_ID) {
-      return message.reply("❌ Bu komut sadece destek kanalında kullanılabilir.");
+    const isAdmin = message.member.permissions.has(
+      PermissionsBitField.Flags.Administrator
+    );
+
+    if (!isAdmin) {
+      return message.reply("❌ Sadece adminler kullanabilir.");
     }
 
     const row = new ActionRowBuilder().addComponents(
@@ -258,100 +234,6 @@ client.on("interactionCreate", async (interaction) => {
       channel.delete().catch(()=>{});
     }, 2000);
   }
-});
-
-// ================= LOGIN =================
-
-client.login(process.env.TOKEN);if (message.content.startsWith("!xpver")) {
-
-    if (message.author.id !== OWNER_ID) return;
-
-    const member =
-      message.mentions.members.first();
-
-    const amount =
-      Number(message.content.split(" ")[2]);
-
-    if (!member) {
-      return message.reply("Kullanıcı belirt");
-    }
-
-    if (!amount) {
-      return message.reply("Miktar belirt");
-    }
-
-    if (!xp[member.id]) xp[member.id] = 0;
-
-    xp[member.id] += amount;
-
-    save("./data/xp.json", xp);
-
-    updateRoles(member, xp[member.id]);
-
-    return message.reply(
-      `⭐ ${amount} XP verildi`
-    );
-  }
-
-});
-
-// ================= BUTTONS =================
-
-client.on("interactionCreate", async (interaction) => {
-
-  if (!interaction.isButton()) return;
-
-  const id = interaction.user.id;
-
-  // GIVEAWAY BUTTON
-  if (interaction.customId === "join_giveaway") {
-
-    if (!giveaways[interaction.message.id]) {
-      giveaways[interaction.message.id] = [];
-    }
-
-    if (
-      giveaways[interaction.message.id].includes(id)
-    ) {
-      return interaction.reply({
-        content: "❌ Zaten katıldın",
-        ephemeral: true
-      });
-    }
-
-    giveaways[interaction.message.id].push(id);
-
-    return interaction.reply({
-      content: "🎉 Çekilişe katıldın!",
-      ephemeral: true
-    });
-  }
-
-  // SHOP BUTTON
-  if (interaction.customId === "buy_senor") {
-
-    if (money[id] < 250000) {
-      return interaction.reply({
-        content: "❌ 250.000 para lazım",
-        ephemeral: true
-      });
-    }
-
-    money[id] -= 250000;
-
-    save("./data/money.json", money);
-
-    const member =
-      interaction.guild.members.cache.get(id);
-
-    member.roles.add(SENOR_ROLE).catch(()=>{});
-
-    return interaction.reply({
-      content: "👑 SENOR rolünü aldın!",
-      ephemeral: true
-    });
-  }
-
 });
 
 // ================= LOGIN =================

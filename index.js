@@ -11,7 +11,7 @@ const {
 } = require("discord.js");
 
 const fs = require("fs");
-
+const { AuditLogEvent } = require("discord.js");
 // ================= CLIENT =================
 
 const client = new Client({
@@ -65,7 +65,7 @@ let money = load("./data/money.json", {});
 let cooldown = {};
 let curse = {};
 let giveaways = {};
-
+const messageCache = new Map();
 // ================= BAD WORDS =================
 
 const BAD_WORDS = [
@@ -232,26 +232,39 @@ client.on("messageDelete", async (message) => {
   if (!message.guild) return;
 
   const log = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-
   if (!log) return;
+
+  const cached = messageCache.get(message.id);
+
+  let executor = "Bilinmiyor";
+
+  try {
+    const audit = await message.guild.fetchAuditLogs({
+      limit: 1,
+      type: AuditLogEvent.MessageDelete
+    });
+
+    const entry = audit.entries.first();
+    if (entry) executor = entry.executor?.tag;
+  } catch {}
 
   log.send(
     `🗑️ MESAJ SİLİNDİ\n\n` +
-    `👤 Kullanıcı: ${message.author?.tag || "unknown"}\n` +
-    `💬 Mesaj: ${message.content || "boş"}`
+    `👤 Yazan: ${cached?.author || message.author?.tag || "unknown"}\n` +
+    `🛠️ Silen: ${executor}\n` +
+    `💬 Mesaj: ${cached?.content || message.content || "boş"}`
   );
+
+  messageCache.delete(message.id);
 });
 
 // ================= MESSAGE EDIT LOG =================
-
 client.on("messageUpdate", async (oldMessage, newMessage) => {
 
   if (!oldMessage.guild) return;
-
   if (oldMessage.content === newMessage.content) return;
 
   const log = oldMessage.guild.channels.cache.get(LOG_CHANNEL_ID);
-
   if (!log) return;
 
   log.send(
@@ -260,12 +273,14 @@ client.on("messageUpdate", async (oldMessage, newMessage) => {
     `📌 Eski: ${oldMessage.content || "boş"}\n` +
     `📌 Yeni: ${newMessage.content || "boş"}`
   );
-});
-
-// ================= MESSAGE =================
+}); =================
 
 client.on("messageCreate", async (message) => {
-
+messageCache.set(message.id, {
+  content: message.content,
+  author: message.author?.tag,
+  authorId: message.author?.id
+});
   if (message.author.bot) return;
   if (!message.guild) return;
 
